@@ -1,148 +1,148 @@
-# Database Contract
+# API Contract - Authentication & User Management
 
-## 1. User
+All endpoints are prefixed with `/api/accounts/`.
 
-Django'nun custom User modeli kullanılacaktır.
-
-Alanlar:
-
-* id
-* username
-* email
-* password
-* avatar
-* is_online
-* last_seen
-* created_at
-* updated_at
-
-Kurallar:
-
-* username unique olmalıdır.
-* email unique olmalıdır.
-* password plain text tutulmayacaktır.
-* Django password hashing kullanılacaktır.
-* created_at otomatik oluşturulacaktır.
-* updated_at otomatik güncellenecektir.
-
----
-
-# 2. Conversation
-
-Alanlar:
-
-* id
-* type
-* name
-* created_by
-* created_at
-* updated_at
-
-type değerleri:
-
-* private
-* group
-
-Kurallar:
-
-* private conversation iki kullanıcı arasında olabilir.
-* group conversation birden fazla kullanıcı içerebilir.
-* group conversation maksimum 5 kullanıcı içerecektir.
-* created_by conversation'ı oluşturan kullanıcıdır.
+## 1. Register User
+- **Endpoint:** `POST /api/accounts/register/`
+- **Authentication:** None (Public)
+- **Request Body:**
+  ```json
+  {
+    "username": "john_doe",
+    "email": "john@example.com",
+    "password": "strongpassword123"
+  }
+  ```
+- **Response (201 Created):**
+  ```json
+  {
+    "user": {
+      "id": 1,
+      "username": "john_doe",
+      "email": "john@example.com",
+      "avatar": null,
+      "is_online": false,
+      "last_seen": null,
+      "created_at": "2026-08-10T12:00:00Z",
+      "updated_at": "2026-08-10T12:00:00Z"
+    },
+    "refresh": "eyJhbGciOi...",
+    "access": "eyJhbGciOi..."
+  }
+  ```
 
 ---
 
-# 3. ConversationMember
-
-Alanlar:
-
-* id
-* conversation
-* user
-* role
-* joined_at
-
-role değerleri:
-
-* admin
-* member
-
-Kurallar:
-
-* Aynı kullanıcı aynı conversation'a iki kez eklenemez.
-* Conversation oluşturulduğunda oluşturan kullanıcı otomatik olarak admin olur.
-* Kullanıcı yalnızca üyesi olduğu conversation'a erişebilir.
+## 2. Login User (Obtain JWT Tokens)
+- **Endpoint:** `POST /api/accounts/login/`
+- **Authentication:** None (Public)
+- **Request Body:**
+  ```json
+  {
+    "username": "john_doe",
+    "password": "strongpassword123"
+  }
+  ```
+- **Response (200 OK):**
+  ```json
+  {
+    "refresh": "eyJhbGciOi...",
+    "access": "eyJhbGciOi..."
+  }
+  ```
 
 ---
 
-# 4. Message
-
-Alanlar:
-
-* id
-* conversation
-* sender
-* content
-* message_type
-* created_at
-* updated_at
-* is_deleted
-
-message_type:
-
-* text
-
-İlk versiyonda yalnızca text mesaj desteklenecektir.
-
-Kurallar:
-
-* Boş mesaj gönderilemez.
-* Mesaj yalnızca conversation üyesi tarafından gönderilebilir.
-* Mesaj sender bilgisine sahip olmalıdır.
-* Mesaj conversation'a bağlı olmalıdır.
+## 3. Refresh JWT Token
+- **Endpoint:** `POST /api/accounts/token/refresh/`
+- **Authentication:** None (Public)
+- **Request Body:**
+  ```json
+  {
+    "refresh": "eyJhbGciOi..."
+  }
+  ```
+- **Response (200 OK):**
+  ```json
+  {
+    "access": "eyJhbGciOi...",
+    "refresh": "eyJhbGciOi..." // If token rotation is enabled
+  }
+  ```
 
 ---
 
-# 5. MessageRead
-
-Alanlar:
-
-* id
-* message
-* user
-* read_at
-
-Kurallar:
-
-* Bir kullanıcı aynı mesajı birden fazla kez read olarak oluşturmamalıdır.
-* Kullanıcı mesajı gördüğünde read bilgisi oluşturulmalıdır.
+## 4. Logout User (Blacklist Token)
+- **Endpoint:** `POST /api/accounts/logout/`
+- **Authentication:** Required (Bearer Token)
+- **Request Body:**
+  ```json
+  {
+    "refresh": "eyJhbGciOi..."
+  }
+  ```
+- **Response (200 OK):**
+  ```json
+  {
+    "detail": "Successfully logged out."
+  }
+  ```
 
 ---
 
-# Relationships
+## 5. Get Current User Profile
+- **Endpoint:** `GET /api/accounts/me/`
+- **Authentication:** Required (Bearer Token)
+- **Response (200 OK):**
+  ```json
+  {
+    "id": 1,
+    "username": "john_doe",
+    "email": "john@example.com",
+    "avatar": "http://localhost:8000/media/avatars/john_doe.png",
+    "is_online": true,
+    "last_seen": "2026-08-10T12:05:00Z",
+    "created_at": "2026-08-10T12:00:00Z",
+    "updated_at": "2026-08-10T12:05:00Z"
+  }
+  ```
 
-User
-↓
-ConversationMember
-↓
-Conversation
-↓
-Message
-↓
-MessageRead
+---
 
-User → Message
+## 6. Update Profile
+- **Endpoint:** `PATCH /api/accounts/update/` (or `PUT`)
+- **Authentication:** Required (Bearer Token)
+- **Request Body (Multipart Form-Data for avatar upload, or JSON):**
+  - `username` (optional)
+  - `email` (optional)
+  - `avatar` (optional, File/Image)
+- **Response (200 OK):**
+  ```json
+  {
+    "username": "john_updated",
+    "email": "john_new@example.com",
+    "avatar": "http://localhost:8000/media/avatars/new_john.png"
+  }
+  ```
 
-Bir kullanıcı birden fazla mesaj gönderebilir.
+---
 
-User → ConversationMember
-
-Bir kullanıcı birden fazla conversation'ın üyesi olabilir.
-
-Conversation → Message
-
-Bir conversation birden fazla mesaj içerebilir.
-
-Conversation → ConversationMember
-
-Bir conversation birden fazla kullanıcı içerebilir.
+## 7. Search Users
+- **Endpoint:** `GET /api/accounts/search/?q=<query_string>`
+- **Authentication:** Required (Bearer Token)
+- **Response (200 OK):**
+  ```json
+  [
+    {
+      "id": 2,
+      "username": "jane_doe",
+      "email": "jane@example.com",
+      "avatar": null,
+      "is_online": false,
+      "last_seen": "2026-08-10T11:00:00Z",
+      "created_at": "2026-08-10T10:00:00Z",
+      "updated_at": "2026-08-10T10:30:00Z"
+    }
+  ]
+  ```
+  *(Returns an empty list `[]` if query parameter `q` is empty or no match is found. Excludes the current authenticated user from results.)*
