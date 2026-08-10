@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'config/chat_config.dart';
+import 'theme/app_theme.dart';
 import 'chat/controllers/chat_controller.dart';
 import 'chat/models/chat_models.dart';
 import 'chat/screens/chat_list_screen.dart';
@@ -36,32 +37,13 @@ class ChatApp extends StatelessWidget {
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'Pulse Chat',
-        themeMode: ThemeMode.system,
-        theme: _theme(Brightness.light),
-        darkTheme: _theme(Brightness.dark),
+        themeMode: ThemeMode.dark,
+        theme: AppTheme.dark,
+        darkTheme: AppTheme.dark,
         home: ChatListScreen(
           showDemoConversations: socket is MockWebSocketService,
         ),
       ),
     );
   }
-}
-
-ThemeData _theme(Brightness brightness) {
-  final colors = ColorScheme.fromSeed(
-    seedColor: const Color(0xff4b64d8),
-    brightness: brightness,
-  );
-  return ThemeData(
-    useMaterial3: true,
-    colorScheme: colors,
-    brightness: brightness,
-    scaffoldBackgroundColor: colors.surface,
-    appBarTheme: AppBarTheme(
-      backgroundColor: colors.surface,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-    ),
-    inputDecorationTheme: const InputDecorationTheme(isDense: true),
-  );
 }

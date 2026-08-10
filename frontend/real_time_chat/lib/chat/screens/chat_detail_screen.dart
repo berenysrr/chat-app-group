@@ -5,6 +5,7 @@ import '../controllers/chat_controller.dart';
 import '../models/chat_models.dart';
 import '../services/web_socket_service.dart';
 import '../widgets/chat_widgets.dart';
+import '../../theme/app_colors.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   const ChatDetailScreen({super.key});
@@ -64,6 +65,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     }
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: AppColors.surface,
+        shape: const Border(bottom: BorderSide(color: AppColors.border)),
         titleSpacing: 0,
         title: Row(
           children: [
@@ -92,7 +95,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                       key: ValueKey(
                         '${controller.peerIsTyping}-${controller.peerIsOnline}',
                       ),
-                      style: Theme.of(context).textTheme.labelMedium,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: _subtitleColor(controller),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -128,10 +134,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                   const Center(child: Text('Henüz mesaj yok'))
                 else
                   DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? const Color(0xff101916)
-                          : const Color(0xffeef4f0),
+                    decoration: const BoxDecoration(
+                      gradient: RadialGradient(
+                        center: Alignment(.75, -.65),
+                        radius: 1.25,
+                        colors: [Color(0xff172044), AppColors.background],
+                      ),
                     ),
                     child: ListView.builder(
                       controller: scrollController,
@@ -198,9 +206,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               ],
             ),
           ),
-          MessageInput(
-            onSend: controller.send,
-            onChanged: controller.onInputChanged,
+          DecoratedBox(
+            decoration: const BoxDecoration(
+              color: AppColors.surface,
+              border: Border(top: BorderSide(color: AppColors.border)),
+            ),
+            child: MessageInput(
+              onSend: controller.send,
+              onChanged: controller.onInputChanged,
+            ),
           ),
           if (controller.errorMessage != null)
             MaterialBanner(
@@ -233,3 +247,13 @@ String _subtitle(ChatController controller) {
 
 bool _sameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
+
+Color _subtitleColor(ChatController controller) {
+  if (controller.connection == SocketConnectionState.connecting ||
+      controller.connection == SocketConnectionState.reconnecting) {
+    return AppColors.warning;
+  }
+  if (controller.peerIsTyping) return AppColors.secondary;
+  if (controller.peerIsOnline) return AppColors.online;
+  return AppColors.textMuted;
+}

@@ -7,6 +7,7 @@ import '../services/mock_web_socket_service.dart';
 import '../services/web_socket_service.dart';
 import '../utils/chat_timestamp.dart';
 import '../widgets/chat_widgets.dart';
+import '../../theme/app_colors.dart';
 import 'chat_detail_screen.dart';
 
 enum _ChatFilter { all, unread }
@@ -23,6 +24,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   _ChatFilter _filter = _ChatFilter.all;
   final Map<int, ChatController> _demoControllers = {};
   bool _initialized = false;
+  ChatController? _selectedController;
 
   @override
   void didChangeDependencies() {
@@ -99,6 +101,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   @override
   void dispose() {
+    _selectedController?.closeConversation();
     for (final controller in _demoControllers.values) {
       controller.removeListener(_onDemoChanged);
       controller.dispose();
@@ -108,6 +111,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isWide = MediaQuery.sizeOf(context).width >= 900;
     final controller = context.watch<ChatController>();
     final controllers = [controller, ..._demoControllers.values];
     final allPreviews = controllers.map(_previewFor).toList()
@@ -124,10 +128,27 @@ class _ChatListScreenState extends State<ChatListScreen> {
       return queryMatches && filterMatches;
     }).toList();
 
-    return Scaffold(
+    final listPane = Scaffold(
+      backgroundColor: AppColors.sidebar,
       appBar: AppBar(
+        backgroundColor: AppColors.sidebar,
         toolbarHeight: 72,
         titleSpacing: 20,
+        leadingWidth: 56,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 16, top: 14, bottom: 14),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: AppColors.primaryGradient,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: const Icon(
+              Icons.forum_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+        ),
         title: const Text(
           'Sohbetler',
           style: TextStyle(
@@ -155,7 +176,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 prefixIcon: const Icon(Icons.search_rounded),
                 prefixIconColor: Theme.of(context).colorScheme.onSurfaceVariant,
                 filled: true,
-                fillColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+                fillColor: AppColors.input,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(30),
                   borderSide: BorderSide.none,
@@ -166,11 +187,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: .35),
-                  ),
+                  borderSide: BorderSide(color: AppColors.primary),
                 ),
                 contentPadding: const EdgeInsets.symmetric(vertical: 15),
               ),
@@ -210,9 +227,15 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       );
                       return _ChatRow(
                         preview: preview,
+                        selected:
+                            isWide && _selectedController == rowController,
+                        enableHero: !isWide,
                         online: rowController.peerIsOnline,
                         typing: rowController.peerIsTyping,
-                        onTap: () => _openConversation(rowController),
+                        onTap: () => _openConversation(
+                          rowController,
+                          showInline: isWide,
+                        ),
                       );
                     },
                   ),
@@ -229,9 +252,40 @@ class _ChatListScreenState extends State<ChatListScreen> {
         child: const Icon(Icons.chat_rounded),
       ),
     );
+    if (!isWide) return listPane;
+    final sidebarWidth = (MediaQuery.sizeOf(context).width * .3)
+        .clamp(320.0, 420.0)
+        .toDouble();
+    return Scaffold(
+      body: Row(
+        children: [
+          SizedBox(width: sidebarWidth, child: listPane),
+          const VerticalDivider(width: 1),
+          Expanded(
+            child: _selectedController == null
+                ? const _DesktopEmptyState()
+                : ChangeNotifierProvider.value(
+                    value: _selectedController!,
+                    child: const ChatDetailScreen(),
+                  ),
+          ),
+        ],
+      ),
+    );
   }
 
-  Future<void> _openConversation(ChatController controller) async {
+  Future<void> _openConversation(
+    ChatController controller, {
+    required bool showInline,
+  }) async {
+    if (showInline) {
+      if (_selectedController != controller) {
+        _selectedController?.closeConversation();
+        controller.openConversation();
+        setState(() => _selectedController = controller);
+      }
+      return;
+    }
     controller.openConversation();
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -348,97 +402,174 @@ class _ContactPickerPlaceholder extends StatelessWidget {
   );
 }
 
+class _DesktopEmptyState extends StatelessWidget {
+  const _DesktopEmptyState();
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: const BoxDecoration(
+      gradient: RadialGradient(
+        center: Alignment(.1, -.2),
+        radius: 1.1,
+        colors: [Color(0xff19234a), AppColors.background],
+      ),
+    ),
+    child: Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 430),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  gradient: AppColors.primaryGradient,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: .25),
+                      blurRadius: 28,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.forum_rounded,
+                  color: Colors.white,
+                  size: 36,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Mesajların',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Mesajları görüntülemek için soldan bir sohbet seçin veya yeni bir sohbet başlatın.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.textSecondary, height: 1.5),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class _ChatRow extends StatelessWidget {
   const _ChatRow({
     required this.preview,
+    required this.selected,
+    required this.enableHero,
     required this.online,
     required this.typing,
     this.onTap,
   });
   final ChatPreview preview;
+  final bool selected;
+  final bool enableHero;
   final bool online;
   final bool typing;
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => InkWell(
-    key: ValueKey('conversation-${preview.conversationId}'),
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(16),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-      child: Row(
-        children: [
-          UserAvatar(
-            user: preview.user,
-            online: online,
-            radius: 27,
-            heroTag: onTap == null ? null : 'avatar-${preview.user.id}',
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  preview.user.username,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontWeight: preview.unreadCount > 0
-                        ? FontWeight.w800
-                        : FontWeight.w700,
-                    fontSize: 16.5,
-                  ),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    child: Material(
+      color: selected
+          ? AppColors.primary.withValues(alpha: .16)
+          : Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        key: ValueKey('conversation-${preview.conversationId}'),
+        onTap: onTap,
+        hoverColor: AppColors.accentBlue.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          child: Row(
+            children: [
+              UserAvatar(
+                user: preview.user,
+                online: online,
+                radius: 27,
+                heroTag: enableHero && onTap != null
+                    ? 'avatar-${preview.user.id}'
+                    : null,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      preview.user.username,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: preview.unreadCount > 0
+                            ? FontWeight.w800
+                            : FontWeight.w700,
+                        fontSize: 16.5,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      typing ? 'yazıyor…' : preview.lastMessage,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: preview.unreadCount > 0
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        color: typing
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  typing ? 'yazıyor…' : preview.lastMessage,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: preview.unreadCount > 0
-                        ? FontWeight.w600
-                        : FontWeight.w400,
-                    color: typing
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 54,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      _previewTime(preview.updatedAt),
+                      maxLines: 1,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: preview.unreadCount > 0
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: preview.unreadCount > 0
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (preview.unreadCount > 0)
+                      _UnreadBadge(
+                        conversationId: preview.conversationId,
+                        count: preview.unreadCount,
+                      )
+                    else
+                      const SizedBox(height: 21),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: 54,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  _previewTime(preview.updatedAt),
-                  maxLines: 1,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: preview.unreadCount > 0
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontWeight: preview.unreadCount > 0
-                        ? FontWeight.w700
-                        : FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (preview.unreadCount > 0)
-                  _UnreadBadge(
-                    conversationId: preview.conversationId,
-                    count: preview.unreadCount,
-                  )
-                else
-                  const SizedBox(height: 21),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     ),
   );

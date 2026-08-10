@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/chat_models.dart';
+import '../../theme/app_colors.dart';
 
 class UserAvatar extends StatelessWidget {
   const UserAvatar({
@@ -70,7 +71,7 @@ class UserAvatar extends StatelessWidget {
               width: 13,
               height: 13,
               decoration: BoxDecoration(
-                color: const Color(0xff35c46a),
+                color: AppColors.online,
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: Theme.of(context).scaffoldBackgroundColor,
@@ -128,11 +129,16 @@ class ConnectionBanner extends StatelessWidget {
         : Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 6),
-            color: Theme.of(context).colorScheme.errorContainer,
+            color: reconnecting
+                ? AppColors.warning.withValues(alpha: .14)
+                : AppColors.error.withValues(alpha: .14),
             child: Text(
               reconnecting ? 'Bağlantı yeniden kuruluyor…' : 'Bağlantı yok',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.labelMedium,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: reconnecting ? AppColors.warning : AppColors.error,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
   );
@@ -152,7 +158,6 @@ class MessageBubble extends StatelessWidget {
   final VoidCallback? onRetry;
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     final radius = Radius.circular(showTail ? 5 : 18);
     return GestureDetector(
       onTap: message.status == MessageStatus.failed ? onRetry : null,
@@ -171,9 +176,9 @@ class MessageBubble extends StatelessWidget {
           ),
           padding: const EdgeInsets.fromLTRB(12, 8, 9, 6),
           decoration: BoxDecoration(
-            color: isMine
-                ? colors.primaryContainer
-                : colors.surfaceContainerHighest,
+            color: isMine ? null : AppColors.card,
+            gradient: isMine ? AppColors.primaryGradient : null,
+            border: isMine ? null : Border.all(color: AppColors.border),
             borderRadius: BorderRadius.only(
               topLeft: const Radius.circular(18),
               topRight: const Radius.circular(18),
@@ -189,13 +194,19 @@ class MessageBubble extends StatelessWidget {
                 padding: const EdgeInsets.only(right: 9, bottom: 2),
                 child: Text(
                   message.content,
-                  style: const TextStyle(fontSize: 15.5, height: 1.3),
+                  style: const TextStyle(
+                    fontSize: 15.5,
+                    height: 1.3,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
               Text(
                 _time(message.createdAt),
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: colors.onSurfaceVariant,
+                  color: isMine
+                      ? AppColors.textPrimary.withValues(alpha: .72)
+                      : AppColors.textMuted,
                 ),
               ),
               if (isMine)
@@ -226,9 +237,7 @@ class MessageStatusIcon extends StatelessWidget {
     return Icon(
       icon,
       size: 15,
-      color: read
-          ? Colors.blueAccent
-          : Theme.of(context).colorScheme.onSurfaceVariant,
+      color: read ? const Color(0xff8fc5ff) : AppColors.textSecondary,
     );
   }
 }
@@ -263,7 +272,8 @@ class _TypingIndicatorState extends State<TypingIndicator> {
       margin: const EdgeInsets.fromLTRB(12, 4, 12, 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: AppColors.card,
+        border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
@@ -276,7 +286,7 @@ class _TypingIndicatorState extends State<TypingIndicator> {
             width: 6,
             height: index == active ? 10 : 6,
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              color: AppColors.textSecondary,
               shape: BoxShape.circle,
             ),
           ),
@@ -338,12 +348,10 @@ class _MessageInputState extends State<MessageInput> {
               decoration: InputDecoration(
                 hintText: 'Mesaj yaz…',
                 filled: true,
-                fillColor: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerHighest,
+                fillColor: AppColors.input,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(26),
-                  borderSide: BorderSide.none,
+                  borderSide: const BorderSide(color: AppColors.border),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 18,
@@ -356,13 +364,24 @@ class _MessageInputState extends State<MessageInput> {
           AnimatedScale(
             scale: hasText ? 1.0 : .94,
             duration: const Duration(milliseconds: 180),
-            child: IconButton.filled(
-              onPressed: hasText ? send : null,
-              icon: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
-                child: Icon(
-                  hasText ? Icons.send_rounded : Icons.mic_rounded,
-                  key: ValueKey(hasText),
+            child: AnimatedOpacity(
+              opacity: hasText ? 1 : .45,
+              duration: const Duration(milliseconds: 180),
+              child: DecoratedBox(
+                decoration: const BoxDecoration(
+                  gradient: AppColors.primaryGradient,
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  onPressed: hasText ? send : null,
+                  color: Colors.white,
+                  icon: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    child: Icon(
+                      hasText ? Icons.send_rounded : Icons.mic_rounded,
+                      key: ValueKey(hasText),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -391,10 +410,16 @@ class DateSeparator extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 12),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHigh,
+          color: AppColors.card,
+          border: Border.all(color: AppColors.border),
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Text(label, style: Theme.of(context).textTheme.labelMedium),
+        child: Text(
+          label,
+          style: Theme.of(
+            context,
+          ).textTheme.labelMedium?.copyWith(color: AppColors.textSecondary),
+        ),
       ),
     );
   }

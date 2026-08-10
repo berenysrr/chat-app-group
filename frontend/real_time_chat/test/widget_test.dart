@@ -215,4 +215,30 @@ void main() {
     expect(find.text('Sohbetler'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('wide layout shows an inline detail panel', (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const ChatApp());
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byType(VerticalDivider), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('conversation-3')));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byKey(const ValueKey('conversation-3')), findsOneWidget);
+    expect(find.byType(TextField), findsNWidgets(2));
+    expect(find.byType(BackButton), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('app uses the centralized dark theme', (tester) async {
+    await tester.pumpWidget(const ChatApp());
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final context = tester.element(find.byType(Scaffold).first);
+    expect(Theme.of(context).brightness, Brightness.dark);
+  });
 }
