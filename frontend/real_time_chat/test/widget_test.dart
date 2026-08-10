@@ -241,4 +241,10 @@ void main() {
     final context = tester.element(find.byType(Scaffold).first);
     expect(Theme.of(context).brightness, Brightness.dark);
   });
+
+  testWidgets('App loads splash screen test', (WidgetTester tester) async {
+    await tester.pumpWidget(const RealTimeChatApp());
+    expect(find.text('RealTime Chat'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 2300));
+  });
 }

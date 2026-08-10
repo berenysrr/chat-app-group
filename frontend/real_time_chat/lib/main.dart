@@ -1,20 +1,77 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'config/chat_config.dart';
 import 'auth/token_store.dart';
-import 'theme/app_theme.dart';
 import 'chat/controllers/chat_controller.dart';
 import 'chat/models/chat_models.dart';
 import 'chat/screens/chat_list_screen.dart';
 import 'chat/screens/real_chat_home.dart';
 import 'chat/services/mock_web_socket_service.dart';
 import 'chat/services/web_socket_service.dart';
+import 'config/chat_config.dart';
+import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/register_screen.dart';
+import 'screens/splash_screen.dart';
+import 'services/api_client.dart';
+import 'theme/app_theme.dart';
 
-void main() => runApp(const ChatApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const RealTimeChatApp());
+}
 
+class RealTimeChatApp extends StatefulWidget {
+  const RealTimeChatApp({super.key});
+
+  @override
+  State<RealTimeChatApp> createState() => _RealTimeChatAppState();
+}
+
+class _RealTimeChatAppState extends State<RealTimeChatApp> {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+
+  @override
+  void initState() {
+    super.initState();
+    ApiClient().onUnauthorized = () {
+      _navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        '/login',
+        (route) => false,
+      );
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: AppTheme.themeModeNotifier,
+      builder: (context, currentMode, child) {
+        return MaterialApp(
+          title: 'RealTime Chat',
+          navigatorKey: _navigatorKey,
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: currentMode,
+          initialRoute: '/',
+          routes: {
+            '/': (context) => const SplashScreen(),
+            '/login': (context) => const LoginScreen(),
+            '/register': (context) => const RegisterScreen(),
+            '/home': (context) => const HomeScreen(),
+          },
+        );
+      },
+    );
+  }
+}
+
+/// Chat modülünün izole testleri ve mock geliştirme modu için uygulama kabuğu.
+/// Gerçek uygulamanın giriş noktası [RealTimeChatApp] olarak kalır.
 class ChatApp extends StatelessWidget {
   const ChatApp({super.key, this.socketOverride, this.tokenStore});
+
   final WebSocketService? socketOverride;
   final TokenStore? tokenStore;
 
@@ -65,18 +122,14 @@ class _MissingAuthBridge extends StatelessWidget {
   const _MissingAuthBridge();
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => const Scaffold(
     body: Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: const Text(
-            'Gerçek chat modu için auth modülünün TokenStore uygulamasını '
-            'ChatApp(tokenStore: ...) üzerinden sağlaması gerekiyor. Token '
-            'kaynak koda veya dart-define içine gömülmedi.',
-            textAlign: TextAlign.center,
-          ),
+        padding: EdgeInsets.all(24),
+        child: Text(
+          'Gerçek chat modu için auth modülünün TokenStore uygulamasını '
+          'ChatApp(tokenStore: ...) üzerinden sağlaması gerekiyor.',
+          textAlign: TextAlign.center,
         ),
       ),
     ),
