@@ -5,6 +5,7 @@ import '../controllers/chat_controller.dart';
 import '../models/chat_models.dart';
 import '../services/mock_web_socket_service.dart';
 import '../services/web_socket_service.dart';
+import '../utils/chat_timestamp.dart';
 import '../widgets/chat_widgets.dart';
 import 'chat_detail_screen.dart';
 
@@ -19,11 +20,90 @@ class ChatListScreen extends StatefulWidget {
 class _ChatListScreenState extends State<ChatListScreen> {
   String _query = '';
   _ChatFilter _filter = _ChatFilter.all;
+  final Map<int, ChatController> _demoControllers = {};
+  bool _initialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialized) return;
+    _initialized = true;
+    final root = context.read<ChatController>();
+    final now = DateTime.now();
+    _addDemo(
+      root,
+      const ChatUser(id: 3, username: 'Mert'),
+      4,
+      'Dosyaları gruba bıraktım.',
+      now.subtract(const Duration(hours: 2)),
+      unread: 1,
+    );
+    _addDemo(
+      root,
+      const ChatUser(id: 4, username: 'Deniz'),
+      5,
+      'Yarın görüşürüz 👋',
+      now.subtract(const Duration(days: 1)),
+      sentByMe: true,
+    );
+  }
+
+  void _addDemo(
+    ChatController root,
+    ChatUser peer,
+    int conversationId,
+    String content,
+    DateTime createdAt, {
+    int unread = 0,
+    bool sentByMe = false,
+  }) {
+    final controller = ChatController(
+      socket: MockWebSocketService(
+        conversationId: conversationId,
+        currentUserId: root.currentUser.id,
+        peerId: peer.id,
+        peerUsername: peer.username,
+      ),
+      currentUser: root.currentUser,
+      peer: peer,
+      conversationId: conversationId,
+      initialMessages: [
+        ChatMessage(
+          id: conversationId * 10,
+          clientMessageId: 'seed-$conversationId',
+          conversationId: conversationId,
+          sender: sentByMe ? root.currentUser : peer,
+          content: content,
+          createdAt: createdAt,
+          status: sentByMe ? MessageStatus.read : MessageStatus.delivered,
+        ),
+      ],
+      initialUnreadCount: unread,
+    );
+    controller.addListener(_onDemoChanged);
+    _demoControllers[conversationId] = controller;
+    controller.initialize();
+  }
+
+  void _onDemoChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _demoControllers.values) {
+      controller.removeListener(_onDemoChanged);
+      controller.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<ChatController>();
-    final allPreviews = _previews(controller);
+    final controllers = [controller, ..._demoControllers.values];
+    final allPreviews = controllers.map(_previewFor).toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     final unreadConversations = allPreviews
         .where((item) => item.unreadCount > 0)
         .length;
@@ -42,12 +122,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
           'Sohbetler',
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
-        actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.more_vert_rounded),
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -104,17 +178,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     itemCount: previews.length,
                     itemBuilder: (context, index) {
                       final preview = previews[index];
-                      final active =
-                          preview.conversationId == controller.conversationId;
+                      final rowController = controllers.firstWhere(
+                        (item) => item.conversationId == preview.conversationId,
+                      );
                       return _ChatRow(
                         preview: preview,
-                        online: active && controller.peerIsOnline,
-                        typing: active && controller.peerIsTyping,
-                        onTap: () => _openConversation(
-                          rootController: controller,
-                          preview: preview,
-                          useRootController: active,
-                        ),
+                        online: rowController.peerIsOnline,
+                        typing: rowController.peerIsTyping,
+                        onTap: () => _openConversation(rowController),
                       );
                     },
                   ),
@@ -122,72 +193,41 @@ class _ChatListScreenState extends State<ChatListScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const _ContactPickerPlaceholder(),
+          ),
+        ),
         child: const Icon(Icons.chat_rounded),
       ),
     );
   }
 
-  Future<void> _openConversation({
-    required ChatController rootController,
-    required ChatPreview preview,
-    required bool useRootController,
-  }) async {
-    if (useRootController) {
-      rootController.openConversation();
-      await Navigator.of(
-        context,
-      ).push(MaterialPageRoute<void>(builder: (_) => const ChatDetailScreen()));
-      rootController.closeConversation();
-      return;
-    }
-
+  Future<void> _openConversation(ChatController controller) async {
+    controller.openConversation();
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ChangeNotifierProvider(
-          create: (_) =>
-              ChatController(
-                  socket: MockWebSocketService(
-                    conversationId: preview.conversationId,
-                    currentUserId: rootController.currentUser.id,
-                  ),
-                  currentUser: rootController.currentUser,
-                  peer: preview.user,
-                  conversationId: preview.conversationId,
-                )
-                ..initialize()
-                ..openConversation(),
+        builder: (_) => ChangeNotifierProvider.value(
+          value: controller,
           child: const ChatDetailScreen(),
         ),
       ),
     );
+    controller.closeConversation();
   }
 
-  List<ChatPreview> _previews(ChatController controller) => [
-    ChatPreview(
+  ChatPreview _previewFor(ChatController controller) {
+    final message = controller.messages.last;
+    return ChatPreview(
       conversationId: controller.conversationId,
       user: controller.peer,
-      lastMessage: controller.messages.isEmpty
-          ? ''
-          : controller.messages.last.content,
-      updatedAt: controller.messages.isEmpty
-          ? DateTime.now()
-          : controller.messages.last.createdAt,
+      lastMessage: message.content,
+      updatedAt: message.createdAt,
       unreadCount: controller.unreadCount,
-    ),
-    ChatPreview(
-      conversationId: 4,
-      user: const ChatUser(id: 3, username: 'Mert'),
-      lastMessage: 'Dosyaları gruba bıraktım.',
-      updatedAt: DateTime.now().subtract(const Duration(hours: 2)),
-    ),
-    ChatPreview(
-      conversationId: 5,
-      user: const ChatUser(id: 4, username: 'Deniz'),
-      lastMessage: 'Yarın görüşürüz 👋',
-      updatedAt: DateTime.now().subtract(const Duration(days: 1)),
-    ),
-  ];
+      lastMessageIsMine: message.isMine(controller.currentUser.id),
+      lastMessageStatus: message.status,
+    );
+  }
 }
 
 class _FilterChip extends StatelessWidget {
@@ -230,6 +270,24 @@ class _EmptyResults extends StatelessWidget {
   );
 }
 
+class _ContactPickerPlaceholder extends StatelessWidget {
+  const _ContactPickerPlaceholder();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Yeni sohbet')),
+    body: const Center(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Text(
+          'Kişi seçme ekranı, kişiler API’si bağlandığında burada gösterilecek.',
+          textAlign: TextAlign.center,
+        ),
+      ),
+    ),
+  );
+}
+
 class _ChatRow extends StatelessWidget {
   const _ChatRow({
     required this.preview,
@@ -244,6 +302,7 @@ class _ChatRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => InkWell(
+    key: ValueKey('conversation-${preview.conversationId}'),
     onTap: onTap,
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
@@ -261,6 +320,13 @@ class _ChatRow extends StatelessWidget {
               children: [
                 Row(
                   children: [
+                    if (preview.lastMessageIsMine) ...[
+                      MessageStatusIcon(
+                        key: ValueKey('status-${preview.conversationId}'),
+                        status: preview.lastMessageStatus,
+                      ),
+                      const SizedBox(width: 4),
+                    ],
                     Expanded(
                       child: Text(
                         preview.user.username,
@@ -333,16 +399,5 @@ class _UnreadBadge extends StatelessWidget {
 }
 
 String _previewTime(DateTime value) {
-  final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
-  final messageDay = DateTime(value.year, value.month, value.day);
-  if (messageDay == today) {
-    return '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
-  }
-  if (messageDay == today.subtract(const Duration(days: 1))) {
-    return 'Dün';
-  }
-  final date =
-      '${value.day.toString().padLeft(2, '0')}.${value.month.toString().padLeft(2, '0')}';
-  return value.year == now.year ? date : '$date.${value.year}';
+  return formatChatTimestamp(value);
 }
