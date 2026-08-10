@@ -1,34 +1,83 @@
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
+from .models import ConversationMember, Message, MessageRead
+from accounts.models import User
 
+
+# --- VERİTABANI İŞLEMLERİ (DATABASE HELPERS) ---
+
+@database_sync_to_async
+def is_user_member(user_id, conversation_id):
+    """Kullanıcı sohbet odasının gerçek üyesi mi kontrol eder."""
+    return ConversationMember.objects.filter(
+        conversation_id=conversation_id,
+        user_id=user_id
+    ).exists()
+
+
+@database_sync_to_async
+def save_message_to_db(user, conversation_id, content):
+    """Gelen mesajı PostgreSQL/SQLite veritabanına kaydeder."""
+    return Message.objects.create(
+        conversation_id=conversation_id,
+        sender=user,
+        content=content,
+        message_type='text'
+    )
+
+
+@database_sync_to_async
+def save_message_read_to_db(user, message_id):
+    """Okundu bilgisini veritabanına yazar."""
+    obj, created = MessageRead.objects.get_or_create(
+        message_id=message_id,
+        user=user
+    )
+    return obj.read_at.isoformat()
+
+
+@database_sync_to_async
+def set_user_online_status(user_id, is_online):
+    """Kullanıcının online/offline durumunu User tablosunda günceller."""
+    update_fields = {'is_online': is_online}
+    if not is_online:
+        update_fields['last_seen'] = timezone.now()
+    User.objects.filter(id=user_id).update(**update_fields)
+
+
+# --- CONSUMER SINIFI ---
 
 class ChatConsumer(AsyncJsonWebsocketConsumer):
-    """
-    WebSocket bağlantılarını yöneten, gelen event'leri karşılayan
-    ve oda üyelerine yayınlayan (broadcast) ana Consumer sınıfı.
-    """
 
     async def connect(self):
         self.user = self.scope.get("user")
         self.conversation_id = self.scope["url_route"]["kwargs"].get("conversation_id")
         self.room_group_name = f"chat_{self.conversation_id}"
 
-        # 1. Kullanıcı doğrulanmamışsa (Anonimse) bağlantıyı reddet
+        # 1. Anonim kullanıcı engellemesi
         if not self.user or self.user.is_anonymous:
             await self.close(code=4001)
             return
 
-        # 2. Odaya (Redis Grubuna) Katıl
+        # 2. Gerçek Veritabanı Üyelik Kontrolü
+        is_member = await is_user_member(self.user.id, self.conversation_id)
+        if not is_member:
+            await self.close(code=4003)  # Üye değilse reddet
+            return
+
+        # 3. Redis Grubuna Ekle
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
         )
 
-        # 3. Bağlantıyı kabul et
         await self.accept()
 
-        # 4. Odadaki diğer kişilere kullanıcının online olduğunu bildir
+        # 4. Veritabanında Kullanıcıyı Online Yap
+        await set_user_online_status(self.user.id, True)
+
+        # 5. Odadakilere Online Duyurusu Yap
         await self.channel_layer.group_send(
             self.room_group_name,
             {
@@ -39,8 +88,11 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         )
 
     async def disconnect(self, close_code):
-        if hasattr(self, "room_group_name"):
-            # 1. Odadaki diğer kişilere kullanıcının offline olduğunu bildir
+        if hasattr(self, "room_group_name") and self.user and not self.user.is_anonymous:
+            # 1. Veritabanında Kullanıcıyı Offline Yap & last_seen Güncelle
+            await set_user_online_status(self.user.id, False)
+
+            # 2. Odadakilere Offline Duyurusu Yap
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -51,17 +103,13 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 }
             )
 
-            # 2. Odedan (Redis Grubundan) Çık
+            # 3. Redis Grubundan Çıkar
             await self.channel_layer.group_discard(
                 self.room_group_name,
                 self.channel_name
             )
 
     async def receive_json(self, content):
-        """
-        Client'tan gelen JSON paketlerini dinler ve türüne göre yönlendirir.
-        Gelen zarf formatı: { "type": "event.name", "data": {...} }
-        """
         event_type = content.get("type")
         data = content.get("data", {})
 
@@ -74,7 +122,6 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         elif event_type == "message.read":
             await self.handle_message_read(data)
         else:
-            # Geçersiz event türü hatası dön
             await self.send_json({
                 "type": "error",
                 "data": {
@@ -83,7 +130,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 }
             })
 
-    # --- HANDLER FONKSİYONLARI ---
+    # --- HANDLERS ---
 
     async def handle_message_send(self, data):
         content = data.get("content", "").strip()
@@ -95,22 +142,25 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             })
             return
 
-        # Geçici (Mock) mesaj yayınlama - Kişi 2 modelleri bitirince DB servisine bağlayacağız
+        # GERÇEK VERİTABANINA MESAJI KAYDET
+        msg = await save_message_to_db(self.user, int(self.conversation_id), content)
+
+        # GERÇEK VERİTABANI MESAJ BİLGİSİ İLE ROOM'A YAYINLA
         await self.channel_layer.group_send(
             self.room_group_name,
             {
                 "type": "chat_message_event",
                 "message_data": {
-                    "id": 1,
+                    "id": msg.id,  # Gerçek DB mesaj ID'si
                     "conversation_id": int(self.conversation_id),
                     "sender": {
                         "id": self.user.id,
                         "username": self.user.username,
-                        "avatar": None,
+                        "avatar": self.user.avatar.url if self.user.avatar else None,
                     },
-                    "content": content,
-                    "message_type": "text",
-                    "created_at": timezone.now().isoformat(),
+                    "content": msg.content,
+                    "message_type": msg.message_type,
+                    "created_at": msg.created_at.isoformat(),
                 }
             }
         )
@@ -138,17 +188,23 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
     async def handle_message_read(self, data):
         message_id = data.get("message_id")
+        if not message_id:
+            return
+
+        # GERÇEK VERİTABANINA OKUNDU BİLGİSİNİ KAYDET
+        read_at_str = await save_message_read_to_db(self.user, message_id)
+
         await self.channel_layer.group_send(
             self.room_group_name,
             {
                 "type": "message_read_event",
                 "message_id": message_id,
                 "user_id": self.user.id,
-                "read_at": timezone.now().isoformat(),
+                "read_at": read_at_str,
             }
         )
 
-    # --- REDIS EVENT BROADCAST EVENTLERİ ---
+    # --- BROADCAST EVENTS ---
 
     async def chat_message_event(self, event):
         await self.send_json({
@@ -157,7 +213,6 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         })
 
     async def typing_start_event(self, event):
-        # Gönderen kişinin kendisine tekrar "yazıyorsun" haberi gitmesin
         if event["sender_id"] != self.user.id:
             await self.send_json({
                 "type": "typing.start",
