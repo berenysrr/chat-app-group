@@ -357,17 +357,13 @@ created_at descending.
 
 # Chat Screens
 
-Chat List ve Chat Detail ekranları için kullanılacak endpointler:
+Chat List ve Chat Detail ekranları ayrı `/chats/` endpointleri kullanmayacaktır.
+Bu ekranlar conversation endpointleri üzerinden beslenecektir:
 
-```http
-GET /api/chats/
-GET /api/chats/{conversation_id}/
-GET /api/chats/{conversation_id}/messages/
-POST /api/chats/
-```
-
-Bu endpointlerin kesin davranışı chat backend implementasyonu sırasında netleştirilecektir.
-Şimdilik frontend ekranlarının ihtiyaç duyduğu ana adresler contract'a eklenmiştir.
+* Chat List → `GET /conversations/`
+* Chat Detail → `GET /conversations/{id}/`
+* Chat Messages → `GET /conversations/{id}/messages/`
+* New Chat → `POST /conversations/`
 
 ---
 
