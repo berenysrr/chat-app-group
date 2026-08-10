@@ -16,12 +16,14 @@ class MockWebSocketService implements WebSocketService {
     this.peerId = 2,
     this.peerUsername = 'Ece',
     this.presenceSchedule = const [],
+    this.autoReplyEnabled = true,
   });
   final int conversationId;
   final int currentUserId;
   final int peerId;
   final String peerUsername;
   final List<MockPresenceStep> presenceSchedule;
+  final bool autoReplyEnabled;
   var _nextId = 100;
   var _replyIndex = 0;
   bool failNextSend = false;
@@ -106,6 +108,7 @@ class MockWebSocketService implements WebSocketService {
         ),
       ),
     );
+    if (!autoReplyEnabled) return;
     _emitTypingEvent(isTyping: true);
     final reply = _nextReply();
     _timers.add(

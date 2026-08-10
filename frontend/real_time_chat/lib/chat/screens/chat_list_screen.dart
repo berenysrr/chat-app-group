@@ -12,7 +12,8 @@ import 'chat_detail_screen.dart';
 enum _ChatFilter { all, unread }
 
 class ChatListScreen extends StatefulWidget {
-  const ChatListScreen({super.key});
+  const ChatListScreen({super.key, required this.showDemoConversations});
+  final bool showDemoConversations;
   @override
   State<ChatListScreen> createState() => _ChatListScreenState();
 }
@@ -28,6 +29,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     super.didChangeDependencies();
     if (_initialized) return;
     _initialized = true;
+    if (!widget.showDemoConversations) return;
     final root = context.read<ChatController>();
     final now = DateTime.now();
     _addDemo(

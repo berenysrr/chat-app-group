@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'config/chat_config.dart';
 import 'chat/controllers/chat_controller.dart';
 import 'chat/models/chat_models.dart';
 import 'chat/screens/chat_list_screen.dart';
 import 'chat/services/mock_web_socket_service.dart';
 import 'chat/services/web_socket_service.dart';
-
-const useMockSocket = bool.fromEnvironment(
-  'USE_MOCK_SOCKET',
-  defaultValue: true,
-);
 
 void main() => runApp(const ChatApp());
 
@@ -20,23 +16,16 @@ class ChatApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mode = ChatConfig.connectionMode;
     final socket =
         socketOverride ??
-        (useMockSocket
+        (mode == ChatConnectionMode.mock
             ? MockWebSocketService(
                 presenceSchedule: const [
                   MockPresenceStep(delay: Duration(seconds: 2), isOnline: true),
                 ],
               )
-            : ContractWebSocketService(
-                uri: Uri.parse(
-                  const String.fromEnvironment(
-                    'WS_URL',
-                    defaultValue:
-                        'ws://localhost:8000/ws/chat/3/?token=ACCESS_TOKEN',
-                  ),
-                ),
-              ));
+            : ContractWebSocketService(uri: ChatConfig.webSocketUri));
     return ChangeNotifierProvider(
       create: (_) => ChatController(
         socket: socket,
@@ -50,7 +39,9 @@ class ChatApp extends StatelessWidget {
         themeMode: ThemeMode.system,
         theme: _theme(Brightness.light),
         darkTheme: _theme(Brightness.dark),
-        home: const ChatListScreen(),
+        home: ChatListScreen(
+          showDemoConversations: socket is MockWebSocketService,
+        ),
       ),
     );
   }

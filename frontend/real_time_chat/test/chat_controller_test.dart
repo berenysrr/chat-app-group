@@ -151,6 +151,40 @@ void main() {
     },
   );
 
+  test('auto reply disabled mode never creates a peer message', () async {
+    final socket = MockWebSocketService(autoReplyEnabled: false);
+    final replies = <ChatMessage>[];
+    final subscription = socket.listenMessage().listen(replies.add);
+    await socket.connect();
+    socket.sendMessage(clientMessageId: 'real-mode-send', content: 'Merhaba');
+    await Future<void>.delayed(const Duration(milliseconds: 1100));
+    expect(replies, isEmpty);
+    await subscription.cancel();
+    await socket.dispose();
+  });
+
+  test('server echo with the optimistic client id is not duplicated', () async {
+    final socket = MockWebSocketService(autoReplyEnabled: false);
+    final controller = buildController(socket);
+    await controller.initialize();
+    expect(controller.send('Sunucuya giden mesaj'), isTrue);
+    final optimistic = controller.messages.single;
+    socket.emitMessage(
+      ChatMessage(
+        id: 501,
+        clientMessageId: optimistic.clientMessageId,
+        conversationId: 3,
+        sender: me,
+        content: optimistic.content,
+        createdAt: DateTime.now(),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.messages, hasLength(1));
+    expect(controller.messages.single.isMine(me.id), isTrue);
+    controller.dispose();
+  });
+
   test('read is sent once only while conversation is visible', () async {
     final socket = MockWebSocketService();
     final controller = buildController(socket);
