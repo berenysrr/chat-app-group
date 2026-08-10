@@ -1,16 +1,31 @@
 enum MessageStatus { pending, sent, delivered, read, failed }
 
 class ChatUser {
-  const ChatUser({required this.id, required this.username, this.avatar});
+  const ChatUser({
+    required this.id,
+    required this.username,
+    this.avatar,
+    this.email,
+    this.isOnline = false,
+    this.lastSeen,
+  });
 
   final int id;
   final String username;
   final String? avatar;
+  final String? email;
+  final bool isOnline;
+  final DateTime? lastSeen;
 
   factory ChatUser.fromJson(Map<String, dynamic> json) => ChatUser(
     id: json['id'] as int,
     username: json['username'] as String,
     avatar: json['avatar'] as String?,
+    email: json['email'] as String?,
+    isOnline: json['is_online'] == true,
+    lastSeen: json['last_seen'] is String
+        ? DateTime.tryParse(json['last_seen'] as String)?.toLocal()
+        : null,
   );
 }
 
@@ -37,16 +52,17 @@ class ChatMessage {
 
   bool isMine(int currentUserId) => sender.id == currentUserId;
 
-  ChatMessage copyWith({int? id, MessageStatus? status}) => ChatMessage(
-    id: id ?? this.id,
-    clientMessageId: clientMessageId,
-    conversationId: conversationId,
-    sender: sender,
-    content: content,
-    messageType: messageType,
-    createdAt: createdAt,
-    status: status ?? this.status,
-  );
+  ChatMessage copyWith({int? id, DateTime? createdAt, MessageStatus? status}) =>
+      ChatMessage(
+        id: id ?? this.id,
+        clientMessageId: clientMessageId,
+        conversationId: conversationId,
+        sender: sender,
+        content: content,
+        messageType: messageType,
+        createdAt: createdAt ?? this.createdAt,
+        status: status ?? this.status,
+      );
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
     id: json['id'] as int,
@@ -57,6 +73,65 @@ class ChatMessage {
     messageType: json['message_type'] as String,
     createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
   );
+}
+
+enum ConversationType { private, group }
+
+class Conversation {
+  const Conversation({
+    required this.id,
+    required this.type,
+    required this.createdBy,
+    required this.members,
+    required this.updatedAt,
+    this.name,
+    this.lastMessage,
+  });
+
+  final int id;
+  final ConversationType type;
+  final String? name;
+  final int createdBy;
+  final List<ChatUser> members;
+  final ChatMessage? lastMessage;
+  final DateTime updatedAt;
+
+  ChatUser? peerFor(int currentUserId) {
+    for (final member in members) {
+      if (member.id != currentUserId) return member;
+    }
+    return null;
+  }
+
+  factory Conversation.fromJson(Map<String, dynamic> json) {
+    final rawMembers = json['members'];
+    final members = rawMembers is List
+        ? rawMembers
+              .whereType<Map>()
+              .map((value) => ChatUser.fromJson(value.cast<String, dynamic>()))
+              .toList()
+        : <ChatUser>[];
+    final rawLastMessage = json['last_message'];
+    return Conversation(
+      id: json['id'] as int,
+      type: json['type'] == 'group'
+          ? ConversationType.group
+          : ConversationType.private,
+      name: json['name'] as String?,
+      createdBy: json['created_by'] as int,
+      members: members,
+      lastMessage: rawLastMessage is Map
+          ? ChatMessage.fromJson(rawLastMessage.cast<String, dynamic>())
+          : null,
+      updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
+    );
+  }
+}
+
+class MessagePage {
+  const MessagePage({required this.messages, required this.hasMore});
+  final List<ChatMessage> messages;
+  final bool hasMore;
 }
 
 class MessageAcknowledgement {

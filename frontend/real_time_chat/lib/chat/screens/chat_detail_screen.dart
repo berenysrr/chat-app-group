@@ -28,6 +28,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   void _onScroll() {
     final show = scrollController.hasClients && scrollController.offset > 180;
     if (show != showJumpButton) setState(() => showJumpButton = show);
+    if (scrollController.hasClients &&
+        scrollController.position.pixels >=
+            scrollController.position.maxScrollExtent - 120) {
+      context.read<ChatController>().loadOlderMessages();
+    }
   }
 
   void _jumpDown() {
@@ -147,12 +152,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       itemCount:
                           controller.messages.length +
+                          (controller.isLoadingHistory ? 1 : 0) +
                           (controller.peerIsTyping ? 1 : 0),
                       itemBuilder: (context, reversedIndex) {
                         if (controller.peerIsTyping && reversedIndex == 0) {
                           return const TypingIndicator();
                         }
                         final offset = controller.peerIsTyping ? 1 : 0;
+                        if (controller.isLoadingHistory &&
+                            reversedIndex ==
+                                controller.messages.length + offset) {
+                          return const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          );
+                        }
                         final index =
                             controller.messages.length -
                             1 -

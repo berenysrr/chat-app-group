@@ -11,14 +11,14 @@ abstract final class ChatConfig {
   }
 
   static const restBaseUrl = String.fromEnvironment(
-    'REST_BASE_URL',
+    'API_BASE_URL',
     defaultValue: 'http://localhost:8000/api/',
   );
 
-  static Uri get webSocketUri => Uri.parse(
-    const String.fromEnvironment(
-      'WS_URL',
-      defaultValue: 'ws://localhost:8000/ws/chat/3/?token=ACCESS_TOKEN',
-    ),
+  static const webSocketBaseUrl = String.fromEnvironment(
+    'WS_BASE_URL',
+    defaultValue: 'ws://localhost:8000',
   );
+
+  static const production = bool.fromEnvironment('PRODUCTION');
 }

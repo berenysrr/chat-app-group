@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/chat_controller.dart';
 import '../models/chat_models.dart';
 import '../services/mock_web_socket_service.dart';
+import '../services/chat_repository.dart';
 import '../services/web_socket_service.dart';
 import '../utils/chat_timestamp.dart';
 import '../widgets/chat_widgets.dart';
@@ -13,8 +16,19 @@ import 'chat_detail_screen.dart';
 enum _ChatFilter { all, unread }
 
 class ChatListScreen extends StatefulWidget {
-  const ChatListScreen({super.key, required this.showDemoConversations});
+  const ChatListScreen({
+    super.key,
+    required this.showDemoConversations,
+    this.additionalControllers = const [],
+    this.repository,
+    this.currentUserId,
+    this.onConversationsChanged,
+  });
   final bool showDemoConversations;
+  final List<ChatController> additionalControllers;
+  final ChatRepository? repository;
+  final int? currentUserId;
+  final VoidCallback? onConversationsChanged;
   @override
   State<ChatListScreen> createState() => _ChatListScreenState();
 }
@@ -26,11 +40,28 @@ class _ChatListScreenState extends State<ChatListScreen> {
   bool _initialized = false;
   ChatController? _selectedController;
 
+  void _listenToExternalControllers(Iterable<ChatController> controllers) {
+    for (final controller in controllers) {
+      controller.addListener(_onExternalChanged);
+    }
+  }
+
+  void _unlistenFromExternalControllers(Iterable<ChatController> controllers) {
+    for (final controller in controllers) {
+      controller.removeListener(_onExternalChanged);
+    }
+  }
+
+  void _onExternalChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_initialized) return;
     _initialized = true;
+    _listenToExternalControllers(widget.additionalControllers);
     if (!widget.showDemoConversations) return;
     final root = context.read<ChatController>();
     final now = DateTime.now();
@@ -50,6 +81,28 @@ class _ChatListScreenState extends State<ChatListScreen> {
       now.subtract(const Duration(days: 1)),
       sentByMe: true,
     );
+  }
+
+  @override
+  void didUpdateWidget(covariant ChatListScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_sameControllers(
+      oldWidget.additionalControllers,
+      widget.additionalControllers,
+    )) {
+      _unlistenFromExternalControllers(oldWidget.additionalControllers);
+      _listenToExternalControllers(widget.additionalControllers);
+      _selectedController?.closeConversation();
+      _selectedController = null;
+    }
+  }
+
+  bool _sameControllers(List<ChatController> a, List<ChatController> b) {
+    if (a.length != b.length) return false;
+    for (var index = 0; index < a.length; index++) {
+      if (!identical(a[index], b[index])) return false;
+    }
+    return true;
   }
 
   void _addDemo(
@@ -101,6 +154,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   @override
   void dispose() {
+    _unlistenFromExternalControllers(widget.additionalControllers);
     _selectedController?.closeConversation();
     for (final controller in _demoControllers.values) {
       controller.removeListener(_onDemoChanged);
@@ -113,7 +167,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Widget build(BuildContext context) {
     final isWide = MediaQuery.sizeOf(context).width >= 900;
     final controller = context.watch<ChatController>();
-    final controllers = [controller, ..._demoControllers.values];
+    final controllers = [
+      controller,
+      ...widget.additionalControllers,
+      ..._demoControllers.values,
+    ];
     final allPreviews = controllers.map(_previewFor).toList()
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     final unreadConversations = allPreviews
@@ -244,11 +302,25 @@ class _ChatListScreenState extends State<ChatListScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Yeni sohbet',
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => const _ContactPickerPlaceholder(),
-          ),
-        ),
+        onPressed: () async {
+          if (widget.repository == null || widget.currentUserId == null) {
+            await Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const _ContactPickerPlaceholder(),
+              ),
+            );
+            return;
+          }
+          final created = await Navigator.of(context).push<Conversation>(
+            MaterialPageRoute<Conversation>(
+              builder: (_) => ContactPickerScreen(
+                repository: widget.repository!,
+                currentUserId: widget.currentUserId!,
+              ),
+            ),
+          );
+          if (created != null) widget.onConversationsChanged?.call();
+        },
         child: const Icon(Icons.chat_rounded),
       ),
     );
@@ -299,17 +371,150 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   ChatPreview _previewFor(ChatController controller) {
-    final message = controller.messages.last;
+    final message = controller.messages.lastOrNull;
     return ChatPreview(
       conversationId: controller.conversationId,
       user: controller.peer,
-      lastMessage: message.content,
-      updatedAt: message.createdAt,
+      lastMessage: message?.content ?? 'Henüz mesaj yok',
+      updatedAt: controller.lastActivityAt,
       unreadCount: controller.unreadCount,
-      lastMessageIsMine: message.isMine(controller.currentUser.id),
-      lastMessageStatus: message.status,
+      lastMessageIsMine: message?.isMine(controller.currentUser.id) ?? false,
+      lastMessageStatus: message?.status ?? MessageStatus.delivered,
     );
   }
+}
+
+class ContactPickerScreen extends StatefulWidget {
+  const ContactPickerScreen({
+    super.key,
+    required this.repository,
+    required this.currentUserId,
+  });
+  final ChatRepository repository;
+  final int currentUserId;
+
+  @override
+  State<ContactPickerScreen> createState() => _ContactPickerScreenState();
+}
+
+class _ContactPickerScreenState extends State<ContactPickerScreen> {
+  Timer? _debounce;
+  int _requestSerial = 0;
+  List<ChatUser> _users = const [];
+  bool _loading = false;
+  int? _creatingUserId;
+  String? _error;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _search(String value) {
+    _debounce?.cancel();
+    final query = value.trim();
+    final serial = ++_requestSerial;
+    if (query.isEmpty) {
+      setState(() {
+        _users = const [];
+        _loading = false;
+        _error = null;
+      });
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 350), () async {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+      try {
+        final users = await widget.repository.searchUsers(query);
+        if (!mounted || serial != _requestSerial) return;
+        setState(() {
+          _users = users
+              .where((user) => user.id != widget.currentUserId)
+              .toList();
+          _loading = false;
+        });
+      } on Object catch (error) {
+        if (!mounted || serial != _requestSerial) return;
+        setState(() {
+          _error = error.toString();
+          _loading = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _create(ChatUser user) async {
+    if (_creatingUserId != null) return;
+    setState(() => _creatingUserId = user.id);
+    try {
+      final conversation = await widget.repository.createPrivateConversation(
+        user.id,
+      );
+      if (mounted) Navigator.of(context).pop(conversation);
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _creatingUserId = null;
+        _error = error.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Yeni sohbet')),
+    body: Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: TextField(
+            autofocus: true,
+            onChanged: _search,
+            decoration: const InputDecoration(
+              hintText: 'Kullanıcı ara',
+              prefixIcon: Icon(Icons.search_rounded),
+            ),
+          ),
+        ),
+        if (_loading) const LinearProgressIndicator(),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              _error!,
+              style: const TextStyle(color: AppColors.error),
+            ),
+          ),
+        Expanded(
+          child: _users.isEmpty && !_loading
+              ? const Center(
+                  child: Text('Aramak için bir kullanıcı adı yazın.'),
+                )
+              : ListView.builder(
+                  itemCount: _users.length,
+                  itemBuilder: (context, index) {
+                    final user = _users[index];
+                    return ListTile(
+                      leading: UserAvatar(user: user, online: user.isOnline),
+                      title: Text(user.username),
+                      trailing: _creatingUserId == user.id
+                          ? const SizedBox.square(
+                              dimension: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.chevron_right_rounded),
+                      onTap: () => _create(user),
+                    );
+                  },
+                ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _FilterChip extends StatelessWidget {

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/chat_models.dart';
+import '../services/chat_repository.dart';
 import '../services/web_socket_service.dart';
 
 class ChatController extends ChangeNotifier {
@@ -14,6 +15,8 @@ class ChatController extends ChangeNotifier {
     required this.conversationId,
     this.initialMessages,
     this.initialUnreadCount = 0,
+    this.repository,
+    this.initialUpdatedAt,
   });
   final WebSocketService socket;
   final ChatUser currentUser;
@@ -21,6 +24,8 @@ class ChatController extends ChangeNotifier {
   final int conversationId;
   final List<ChatMessage>? initialMessages;
   final int initialUnreadCount;
+  final ChatRepository? repository;
+  final DateTime? initialUpdatedAt;
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   final List<ChatMessage> _messages = [];
   final Set<int> _readMessageIds = {};
@@ -37,38 +42,52 @@ class ChatController extends ChangeNotifier {
   int unreadCount = 0;
   DateTime? peerLastSeen;
   String? errorMessage;
+  bool isLoadingHistory = false;
+  bool hasMoreHistory = true;
+  bool _syncingAfterReconnect = false;
 
   List<ChatMessage> get messages => List.unmodifiable(_messages);
+  DateTime get lastActivityAt =>
+      _messages.lastOrNull?.createdAt ??
+      initialUpdatedAt ??
+      DateTime.fromMillisecondsSinceEpoch(0);
 
   Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
-    _messages.addAll(
-      initialMessages ??
-          [
-            ChatMessage(
-              id: 1,
-              clientMessageId: 'seed-1',
-              conversationId: conversationId,
-              sender: peer,
-              content: 'Selam! Bugünkü sunum hazır mı?',
-              createdAt: DateTime.now().subtract(const Duration(minutes: 18)),
-            ),
-            ChatMessage(
-              id: 2,
-              clientMessageId: 'seed-2',
-              conversationId: conversationId,
-              sender: currentUser,
-              content: 'Neredeyse bitti, son dokunuşları yapıyorum.',
-              createdAt: DateTime.now().subtract(const Duration(minutes: 16)),
-              status: MessageStatus.read,
-            ),
-          ],
-    );
+    if (initialMessages != null) _messages.addAll(initialMessages!);
+    if (repository != null) {
+      await _loadInitialHistory();
+    } else if (initialMessages == null) {
+      _messages.addAll([
+        ChatMessage(
+          id: 1,
+          clientMessageId: 'seed-1',
+          conversationId: conversationId,
+          sender: peer,
+          content: 'Selam! Bugünkü sunum hazır mı?',
+          createdAt: DateTime.now().subtract(const Duration(minutes: 18)),
+        ),
+        ChatMessage(
+          id: 2,
+          clientMessageId: 'seed-2',
+          conversationId: conversationId,
+          sender: currentUser,
+          content: 'Neredeyse bitti, son dokunuşları yapıyorum.',
+          createdAt: DateTime.now().subtract(const Duration(minutes: 16)),
+          status: MessageStatus.read,
+        ),
+      ]);
+    }
     unreadCount = initialUnreadCount;
     _subscriptions.addAll([
       socket.connectionState.listen((value) {
+        final wasReconnecting =
+            connection == SocketConnectionState.reconnecting;
         connection = value;
+        if (value == SocketConnectionState.connected && wasReconnecting) {
+          _syncAfterReconnect();
+        }
         notifyListeners();
       }),
       socket.listenMessage().listen(_onMessage),
@@ -105,6 +124,85 @@ class ChatController extends ChangeNotifier {
     ]);
     notifyListeners();
     await socket.connect();
+  }
+
+  Future<void> _loadInitialHistory() async {
+    isLoadingHistory = true;
+    try {
+      final page = await repository!.messages(conversationId);
+      _mergeMessages(page.messages);
+      hasMoreHistory = page.hasMore;
+    } on Object catch (error) {
+      errorMessage = error.toString();
+    } finally {
+      isLoadingHistory = false;
+    }
+  }
+
+  Future<void> loadOlderMessages() async {
+    if (repository == null || isLoadingHistory || !hasMoreHistory) return;
+    final oldestId = _messages.where((item) => item.id != null).firstOrNull?.id;
+    if (oldestId == null) return;
+    isLoadingHistory = true;
+    _notify();
+    try {
+      final page = await repository!.messages(
+        conversationId,
+        beforeId: oldestId,
+      );
+      _mergeMessages(page.messages);
+      hasMoreHistory = page.hasMore;
+    } on Object catch (error) {
+      errorMessage = error.toString();
+    } finally {
+      isLoadingHistory = false;
+      _notify();
+    }
+  }
+
+  Future<void> _syncAfterReconnect() async {
+    if (repository == null || _syncingAfterReconnect) return;
+    final ids = _messages
+        .where((item) => item.id != null)
+        .map((item) => item.id!);
+    if (ids.isEmpty) return;
+    _syncingAfterReconnect = true;
+    try {
+      final page = await repository!.messages(
+        conversationId,
+        afterId: ids.reduce((a, b) => a > b ? a : b),
+      );
+      _mergeMessages(page.messages);
+      for (final message in _messages.where(
+        (item) => item.status == MessageStatus.pending,
+      )) {
+        socket.sendMessage(
+          clientMessageId: message.clientMessageId,
+          content: message.content,
+        );
+      }
+    } on Object catch (error) {
+      errorMessage = error.toString();
+    } finally {
+      _syncingAfterReconnect = false;
+      _notify();
+    }
+  }
+
+  void _mergeMessages(Iterable<ChatMessage> incoming) {
+    for (final message in incoming) {
+      final index = _messages.indexWhere(
+        (item) =>
+            (message.id != null && item.id == message.id) ||
+            item.clientMessageId == message.clientMessageId,
+      );
+      if (index < 0) {
+        _messages.add(message);
+      } else if (_messages[index].status == MessageStatus.pending) {
+        _messages[index] = message;
+      }
+    }
+    _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
   }
 
   bool send(String rawContent) {
@@ -260,6 +358,7 @@ class ChatController extends ChangeNotifier {
       acknowledgement.clientMessageId,
       (message) => message.copyWith(
         id: acknowledgement.messageId,
+        createdAt: acknowledgement.createdAt,
         status: MessageStatus.delivered,
       ),
     );
