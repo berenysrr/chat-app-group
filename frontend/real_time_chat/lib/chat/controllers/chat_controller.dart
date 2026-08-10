@@ -23,11 +23,17 @@ class ChatController extends ChangeNotifier {
   final int initialUnreadCount;
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   final List<ChatMessage> _messages = [];
+  final Set<int> _readMessageIds = {};
   Timer? _typingDebounce;
+  Timer? _peerTypingTimeout;
+  bool _initialized = false;
+  bool _disposed = false;
+  bool _isTyping = false;
   SocketConnectionState connection = SocketConnectionState.disconnected;
   bool peerIsTyping = false;
   bool peerIsOnline = false;
   bool _isConversationVisible = false;
+  bool _isAppForeground = true;
   int unreadCount = 0;
   DateTime? peerLastSeen;
   String? errorMessage;
@@ -35,6 +41,8 @@ class ChatController extends ChangeNotifier {
   List<ChatMessage> get messages => List.unmodifiable(_messages);
 
   Future<void> initialize() async {
+    if (_initialized) return;
+    _initialized = true;
     _messages.addAll(
       initialMessages ??
           [
@@ -67,18 +75,27 @@ class ChatController extends ChangeNotifier {
       socket.listenAcknowledgement().listen(_onAcknowledgement),
       socket.listenMessageRead().listen(_onRead),
       socket.listenTyping().listen((event) {
-        if (event.userId == peer.id) peerIsTyping = event.isTyping;
+        if (event.userId != peer.id) return;
+        _peerTypingTimeout?.cancel();
+        peerIsTyping = event.isTyping;
+        if (event.isTyping) {
+          _peerTypingTimeout = Timer(const Duration(seconds: 5), () {
+            peerIsTyping = false;
+            _notify();
+          });
+        }
         notifyListeners();
       }),
       socket.listenOnline().listen((event) {
-        if (event.userId == peer.id) peerIsOnline = true;
+        if (event.userId != peer.id) return;
+        peerIsOnline = true;
+        peerLastSeen = null;
         notifyListeners();
       }),
       socket.listenOffline().listen((event) {
-        if (event.userId == peer.id) {
-          peerIsOnline = false;
-          peerLastSeen = event.lastSeen;
-        }
+        if (event.userId != peer.id) return;
+        peerIsOnline = false;
+        peerLastSeen = event.lastSeen;
         notifyListeners();
       }),
       socket.errors.listen((value) {
@@ -90,9 +107,9 @@ class ChatController extends ChangeNotifier {
     await socket.connect();
   }
 
-  void send(String rawContent) {
+  bool send(String rawContent) {
     final content = rawContent.trim();
-    if (content.isEmpty) return;
+    if (content.isEmpty) return false;
     final clientId = const Uuid().v4();
     _messages.add(
       ChatMessage(
@@ -106,9 +123,10 @@ class ChatController extends ChangeNotifier {
       ),
     );
     notifyListeners();
+    _stopTyping();
     try {
-      socket.sendTypingStop();
       socket.sendMessage(clientMessageId: clientId, content: content);
+      return true;
     } catch (error) {
       _replaceByClientId(
         clientId,
@@ -116,19 +134,36 @@ class ChatController extends ChangeNotifier {
       );
       errorMessage = 'Mesaj gönderilemedi. Bağlantıyı kontrol edin.';
       notifyListeners();
+      return false;
+    }
+  }
+
+  void retryMessage(String clientMessageId) {
+    final index = _messages.indexWhere(
+      (item) =>
+          item.clientMessageId == clientMessageId &&
+          item.status == MessageStatus.failed,
+    );
+    if (index < 0) return;
+    final message = _messages[index];
+    _messages[index] = message.copyWith(status: MessageStatus.pending);
+    errorMessage = null;
+    notifyListeners();
+    try {
+      socket.sendMessage(
+        clientMessageId: message.clientMessageId,
+        content: message.content,
+      );
+    } catch (_) {
+      _messages[index] = message.copyWith(status: MessageStatus.failed);
+      errorMessage = 'Mesaj yeniden gönderilemedi.';
+      notifyListeners();
     }
   }
 
   void openConversation() {
     _isConversationVisible = true;
-    final unreadMessages = _messages.where(
-      (message) => !message.isMine(currentUser.id) && message.id != null,
-    );
-    for (final message in unreadMessages) {
-      try {
-        socket.sendMessageRead(message.id!);
-      } catch (_) {}
-    }
+    _markUnreadMessagesRead();
     if (unreadCount != 0) {
       unreadCount = 0;
       notifyListeners();
@@ -137,19 +172,31 @@ class ChatController extends ChangeNotifier {
 
   void closeConversation() {
     _isConversationVisible = false;
+    _stopTyping();
+  }
+
+  void setAppForeground(bool foreground) {
+    _isAppForeground = foreground;
+    if (foreground && _isConversationVisible) {
+      _markUnreadMessagesRead();
+      if (unreadCount != 0) {
+        unreadCount = 0;
+        notifyListeners();
+      }
+    }
   }
 
   void onInputChanged(String value) {
     _typingDebounce?.cancel();
     if (value.trim().isEmpty) {
-      _safeTyping(false);
+      _stopTyping();
       return;
     }
-    _safeTyping(true);
-    _typingDebounce = Timer(
-      const Duration(milliseconds: 900),
-      () => _safeTyping(false),
-    );
+    if (!_isTyping) {
+      _isTyping = true;
+      _safeTyping(true);
+    }
+    _typingDebounce = Timer(const Duration(milliseconds: 900), _stopTyping);
   }
 
   void _safeTyping(bool active) {
@@ -158,7 +205,35 @@ class ChatController extends ChangeNotifier {
     } catch (_) {}
   }
 
+  void _stopTyping() {
+    _typingDebounce?.cancel();
+    if (!_isTyping) return;
+    _isTyping = false;
+    _safeTyping(false);
+  }
+
+  void _markUnreadMessagesRead() {
+    if (unreadCount == 0) return;
+    final candidates = _messages
+        .where(
+          (message) =>
+              !message.isMine(currentUser.id) &&
+              message.id != null &&
+              !_readMessageIds.contains(message.id),
+        )
+        .toList();
+    final start = (candidates.length - unreadCount).clamp(0, candidates.length);
+    final unreadMessages = candidates.skip(start);
+    for (final message in unreadMessages) {
+      try {
+        socket.sendMessageRead(message.id!);
+        _readMessageIds.add(message.id!);
+      } catch (_) {}
+    }
+  }
+
   void _onMessage(ChatMessage message) {
+    if (message.conversationId != conversationId) return;
     if (_messages.any(
       (item) =>
           item.id == message.id ||
@@ -169,8 +244,9 @@ class ChatController extends ChangeNotifier {
     _messages.add(message);
     _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
     if (!message.isMine(currentUser.id)) {
-      if (_isConversationVisible && message.id != null) {
+      if (_isConversationVisible && _isAppForeground && message.id != null) {
         socket.sendMessageRead(message.id!);
+        _readMessageIds.add(message.id!);
       } else {
         unreadCount++;
       }
@@ -179,6 +255,7 @@ class ChatController extends ChangeNotifier {
   }
 
   void _onAcknowledgement(MessageAcknowledgement acknowledgement) {
+    if (acknowledgement.conversationId != conversationId) return;
     _replaceByClientId(
       acknowledgement.clientMessageId,
       (message) => message.copyWith(
@@ -195,9 +272,10 @@ class ChatController extends ChangeNotifier {
           message.id == event.messageId && message.isMine(currentUser.id),
     );
     if (index >= 0) {
+      if (_messages[index].status == MessageStatus.read) return;
       _messages[index] = _messages[index].copyWith(status: MessageStatus.read);
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   void _replaceByClientId(
@@ -210,9 +288,21 @@ class ChatController extends ChangeNotifier {
     if (index >= 0) _messages[index] = replace(_messages[index]);
   }
 
+  Future<void> reconnect() async {
+    await socket.disconnect();
+    await socket.connect();
+  }
+
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
   @override
   void dispose() {
+    _disposed = true;
     _typingDebounce?.cancel();
+    _peerTypingTimeout?.cancel();
+    if (_isTyping) _safeTyping(false);
     for (final subscription in _subscriptions) {
       subscription.cancel();
     }

@@ -39,6 +39,8 @@ class ContractWebSocketService implements WebSocketService {
   Timer? _reconnectTimer;
   var _manuallyDisconnected = false;
   var _attempt = 0;
+  var _connecting = false;
+  var _disposed = false;
 
   final _states = StreamController<SocketConnectionState>.broadcast();
   final _messages = StreamController<ChatMessage>.broadcast();
@@ -70,6 +72,8 @@ class ContractWebSocketService implements WebSocketService {
 
   @override
   Future<void> connect() async {
+    if (_disposed || _connecting || _channel != null) return;
+    _connecting = true;
     _manuallyDisconnected = false;
     _reconnectTimer?.cancel();
     _states.add(
@@ -80,6 +84,10 @@ class ContractWebSocketService implements WebSocketService {
     try {
       final channel = WebSocketChannel.connect(uri);
       await channel.ready;
+      if (_manuallyDisconnected || _disposed) {
+        await channel.sink.close();
+        return;
+      }
       _channel = channel;
       _attempt = 0;
       _states.add(SocketConnectionState.connected);
@@ -92,6 +100,8 @@ class ContractWebSocketService implements WebSocketService {
     } catch (error, stackTrace) {
       _reportError('Connection failed: $error', stackTrace);
       _scheduleReconnect();
+    } finally {
+      _connecting = false;
     }
   }
 
@@ -135,7 +145,11 @@ class ContractWebSocketService implements WebSocketService {
   void _scheduleReconnect() {
     _subscription?.cancel();
     _channel = null;
-    if (_manuallyDisconnected || _reconnectTimer?.isActive == true) return;
+    if (_disposed ||
+        _manuallyDisconnected ||
+        _reconnectTimer?.isActive == true) {
+      return;
+    }
     _states.add(SocketConnectionState.disconnected);
     final seconds = (1 << _attempt.clamp(0, 5)).clamp(
       1,
@@ -178,12 +192,18 @@ class ContractWebSocketService implements WebSocketService {
   }
 
   void _reportError(String message, StackTrace stackTrace) {
-    debugPrint('$message\n$stackTrace');
-    _errors.add(message);
+    final safeMessage = message.replaceAll(
+      uri.toString(),
+      '${uri.scheme}://${uri.host}${uri.path}?token=***',
+    );
+    debugPrint(safeMessage);
+    _errors.add(safeMessage);
   }
 
   @override
   Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
     await disconnect();
     await Future.wait([
       _states.close(),
