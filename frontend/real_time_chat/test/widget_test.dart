@@ -45,4 +45,24 @@ void main() {
     expect(find.text('Ece'), findsOneWidget);
     expect(find.text('Mert'), findsNothing);
   });
+
+  testWidgets('Mert and Deniz conversations open with the selected contact', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const ChatApp());
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.tap(find.text('Mert'));
+    await tester.pumpAndSettle();
+    expect(find.text('Mert'), findsOneWidget);
+    expect(find.text('Mesaj yaz…'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dün'), findsOneWidget);
+    await tester.tap(find.text('Deniz'));
+    await tester.pumpAndSettle();
+    expect(find.text('Deniz'), findsOneWidget);
+    expect(find.text('Mesaj yaz…'), findsOneWidget);
+  });
 }

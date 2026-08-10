@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../controllers/chat_controller.dart';
 import '../models/chat_models.dart';
+import '../services/mock_web_socket_service.dart';
 import '../services/web_socket_service.dart';
 import '../widgets/chat_widgets.dart';
 import 'chat_detail_screen.dart';
@@ -109,9 +110,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
                         preview: preview,
                         online: active && controller.peerIsOnline,
                         typing: active && controller.peerIsTyping,
-                        onTap: active
-                            ? () => _openConversation(controller)
-                            : null,
+                        onTap: () => _openConversation(
+                          rootController: controller,
+                          preview: preview,
+                          useRootController: active,
+                        ),
                       );
                     },
                   ),
@@ -125,12 +128,39 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
-  Future<void> _openConversation(ChatController controller) async {
-    controller.openConversation();
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const ChatDetailScreen()));
-    controller.closeConversation();
+  Future<void> _openConversation({
+    required ChatController rootController,
+    required ChatPreview preview,
+    required bool useRootController,
+  }) async {
+    if (useRootController) {
+      rootController.openConversation();
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute<void>(builder: (_) => const ChatDetailScreen()));
+      rootController.closeConversation();
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ChangeNotifierProvider(
+          create: (_) =>
+              ChatController(
+                  socket: MockWebSocketService(
+                    conversationId: preview.conversationId,
+                    currentUserId: rootController.currentUser.id,
+                  ),
+                  currentUser: rootController.currentUser,
+                  peer: preview.user,
+                  conversationId: preview.conversationId,
+                )
+                ..initialize()
+                ..openConversation(),
+          child: const ChatDetailScreen(),
+        ),
+      ),
+    );
   }
 
   List<ChatPreview> _previews(ChatController controller) => [
@@ -304,7 +334,15 @@ class _UnreadBadge extends StatelessWidget {
 
 String _previewTime(DateTime value) {
   final now = DateTime.now();
-  return now.difference(value).inDays == 0
-      ? '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}'
-      : '${value.day}.${value.month}';
+  final today = DateTime(now.year, now.month, now.day);
+  final messageDay = DateTime(value.year, value.month, value.day);
+  if (messageDay == today) {
+    return '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+  }
+  if (messageDay == today.subtract(const Duration(days: 1))) {
+    return 'Dün';
+  }
+  final date =
+      '${value.day.toString().padLeft(2, '0')}.${value.month.toString().padLeft(2, '0')}';
+  return value.year == now.year ? date : '$date.${value.year}';
 }
