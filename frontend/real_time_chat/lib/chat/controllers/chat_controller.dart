@@ -23,6 +23,8 @@ class ChatController extends ChangeNotifier {
   SocketConnectionState connection = SocketConnectionState.disconnected;
   bool peerIsTyping = false;
   bool peerIsOnline = false;
+  bool _isConversationVisible = false;
+  int unreadCount = 0;
   DateTime? peerLastSeen;
   String? errorMessage;
 
@@ -48,6 +50,9 @@ class ChatController extends ChangeNotifier {
         status: MessageStatus.read,
       ),
     ]);
+    unreadCount = _messages
+        .where((message) => !message.isMine(currentUser.id))
+        .length;
     _subscriptions.addAll([
       socket.connectionState.listen((value) {
         connection = value;
@@ -109,6 +114,26 @@ class ChatController extends ChangeNotifier {
     }
   }
 
+  void openConversation() {
+    _isConversationVisible = true;
+    final unreadMessages = _messages.where(
+      (message) => !message.isMine(currentUser.id) && message.id != null,
+    );
+    for (final message in unreadMessages) {
+      try {
+        socket.sendMessageRead(message.id!);
+      } catch (_) {}
+    }
+    if (unreadCount != 0) {
+      unreadCount = 0;
+      notifyListeners();
+    }
+  }
+
+  void closeConversation() {
+    _isConversationVisible = false;
+  }
+
   void onInputChanged(String value) {
     _typingDebounce?.cancel();
     if (value.trim().isEmpty) {
@@ -138,8 +163,12 @@ class ChatController extends ChangeNotifier {
     }
     _messages.add(message);
     _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    if (!message.isMine(currentUser.id) && message.id != null) {
-      socket.sendMessageRead(message.id!);
+    if (!message.isMine(currentUser.id)) {
+      if (_isConversationVisible && message.id != null) {
+        socket.sendMessageRead(message.id!);
+      } else {
+        unreadCount++;
+      }
     }
     notifyListeners();
   }
