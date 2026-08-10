@@ -8,11 +8,12 @@ class ChatService {
 
   Future<List<ConversationModel>> getConversations() async {
     try {
-      final response = await _client.dio.get('/api/chat/conversations/');
-      if (response.statusCode == 200 && response.data is List) {
-        return (response.data as List)
-            .map((json) => ConversationModel.fromJson(json))
-            .toList();
+      final response = await _client.dio.get('/api/conversations/');
+      final results = response.data is Map
+          ? response.data['results']
+          : response.data;
+      if (response.statusCode == 200 && results is List) {
+        return results.map((json) => ConversationModel.fromJson(json)).toList();
       }
     } catch (_) {}
     return [];
@@ -24,14 +25,11 @@ class ChatService {
     String? name,
   }) async {
     try {
-      final data = <String, dynamic>{
-        'type': type,
-        'member_ids': memberIds,
-      };
+      final data = <String, dynamic>{'type': type, 'member_ids': memberIds};
       if (name != null && name.isNotEmpty) data['name'] = name;
 
       final response = await _client.dio.post(
-        '/api/chat/conversations/',
+        '/api/conversations/',
         data: data,
       );
       if ((response.statusCode == 200 || response.statusCode == 201) &&
@@ -46,15 +44,26 @@ class ChatService {
     return null;
   }
 
-  Future<List<MessageModel>> getMessages(int conversationId) async {
+  Future<List<MessageModel>> getMessages(
+    int conversationId, {
+    int? afterId,
+    int? beforeId,
+    int? pageSize,
+  }) async {
     try {
       final response = await _client.dio.get(
-        '/api/chat/conversations/$conversationId/messages/',
+        '/api/conversations/$conversationId/messages/',
+        queryParameters: {
+          'after_id': ?afterId,
+          'before_id': ?beforeId,
+          'page_size': ?pageSize,
+        },
       );
-      if (response.statusCode == 200 && response.data is List) {
-        return (response.data as List)
-            .map((json) => MessageModel.fromJson(json))
-            .toList();
+      final results = response.data is Map
+          ? response.data['results']
+          : response.data;
+      if (response.statusCode == 200 && results is List) {
+        return results.map((json) => MessageModel.fromJson(json)).toList();
       }
     } catch (_) {}
     return [];

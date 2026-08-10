@@ -35,9 +35,9 @@ class ApiClient {
         },
         onError: (DioException error, handler) async {
           if (error.response?.statusCode == 401 &&
-              !error.requestOptions.path.contains('/api/accounts/login/') &&
-              !error.requestOptions.path.contains('/api/accounts/register/') &&
-              !error.requestOptions.path.contains('/api/accounts/token/refresh/')) {
+              !error.requestOptions.path.contains('/api/auth/login/') &&
+              !error.requestOptions.path.contains('/api/auth/register/') &&
+              !error.requestOptions.path.contains('/api/auth/refresh/')) {
             final refreshed = await _refreshToken();
             if (refreshed) {
               try {
@@ -48,10 +48,7 @@ class ApiClient {
 
                 final cloneReq = await dio.request(
                   opts.path,
-                  options: Options(
-                    method: opts.method,
-                    headers: opts.headers,
-                  ),
+                  options: Options(method: opts.method, headers: opts.headers),
                   data: opts.data,
                   queryParameters: opts.queryParameters,
                 );
@@ -77,7 +74,7 @@ class ApiClient {
     try {
       final tokenDio = Dio(BaseOptions(baseUrl: baseUrl));
       final response = await tokenDio.post(
-        '/api/accounts/token/refresh/',
+        '/api/auth/refresh/',
         data: {'refresh': refresh},
       );
 
@@ -85,7 +82,10 @@ class ApiClient {
         final newAccess = response.data['access'];
         final newRefresh = response.data['refresh'] ?? refresh;
         if (newAccess != null) {
-          await TokenStorage().saveTokens(access: newAccess, refresh: newRefresh);
+          await TokenStorage().saveTokens(
+            access: newAccess,
+            refresh: newRefresh,
+          );
           return true;
         }
       }

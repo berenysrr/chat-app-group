@@ -22,10 +22,13 @@ class MessageModel {
   factory MessageModel.fromJson(Map<String, dynamic> json) {
     return MessageModel(
       id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
-      conversationId: json['conversation_id'] != null
-          ? (json['conversation_id'] is int
-              ? json['conversation_id']
-              : int.parse(json['conversation_id'].toString()))
+      conversationId: (json['conversation_id'] ?? json['conversation']) != null
+          ? ((json['conversation_id'] ?? json['conversation']) is int
+                ? (json['conversation_id'] ?? json['conversation'])
+                : int.parse(
+                    (json['conversation_id'] ?? json['conversation'])
+                        .toString(),
+                  ))
           : null,
       sender: json['sender'] != null
           ? UserModel.fromJson(json['sender'])
@@ -35,7 +38,7 @@ class MessageModel {
       createdAt: json['created_at'] != null
           ? (DateTime.tryParse(json['created_at']) ?? DateTime.now())
           : DateTime.now(),
-      isRead: json['is_read'] ?? false,
+      isRead: json['is_read_by_me'] ?? json['is_read'] ?? false,
     );
   }
 

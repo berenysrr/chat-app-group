@@ -2,6 +2,7 @@ from rest_framework import viewsets, generics, status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 
@@ -36,6 +37,22 @@ class ConversationViewSet(viewsets.ModelViewSet):
         ).distinct().order_by('-updated_at')
 
     def perform_create(self, serializer):
+        serializer.save()
+
+    def list(self, request, *args, **kwargs):
+        serializer = self.get_serializer(self.get_queryset(), many=True)
+        return Response({"results": serializer.data})
+
+    def get_permissions(self):
+        if self.action in ('update', 'partial_update'):
+            return [permissions.IsAuthenticated(), IsConversationAdmin()]
+        return [permissions.IsAuthenticated(), IsConversationMember()]
+
+    def perform_update(self, serializer):
+        if serializer.instance.type != 'group':
+            raise PermissionDenied("Yalnızca grup sohbetinin adı güncellenebilir.")
+        if set(serializer.validated_data) - {'name'}:
+            raise ValidationError({"detail": "Yalnızca grup adı güncellenebilir."})
         serializer.save()
 
     def destroy(self, request, *args, **kwargs):
@@ -98,9 +115,8 @@ class ConversationMembersView(APIView):
         if ConversationMember.objects.filter(conversation=conversation, user=target_user).exists():
             return Response({"detail": "Bu kullanıcı zaten grupta ekli."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Maksimum 10 üye kontrolü
-        if conversation.members.count() >= 10:
-            return Response({"detail": "Grup sohbeti maksimum 10 kişiden oluşabilir."}, status=status.HTTP_400_BAD_REQUEST)
+        if conversation.members.count() >= 5:
+            return Response({"detail": "Grup sohbeti maksimum 5 kişiden oluşabilir."}, status=status.HTTP_400_BAD_REQUEST)
 
         new_member = ConversationMember.objects.create(conversation=conversation, user=target_user, role='member')
         return Response(ConversationMemberSerializer(new_member).data, status=status.HTTP_201_CREATED)
@@ -147,5 +163,11 @@ class ConversationMessageHistoryView(generics.ListAPIView):
         if not ConversationMember.objects.filter(conversation=conversation, user=self.request.user).exists():
             return Message.objects.none()
 
-        # En son mesajdan eskiye doğru getir
-        return conversation.messages.filter(is_deleted=False).order_by('-created_at')
+        messages = conversation.messages.filter(is_deleted=False)
+        after_id = self.request.query_params.get('after_id')
+        before_id = self.request.query_params.get('before_id')
+        if after_id:
+            messages = messages.filter(id__gt=after_id)
+        if before_id:
+            messages = messages.filter(id__lt=before_id)
+        return messages.order_by('-created_at')

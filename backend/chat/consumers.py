@@ -1,6 +1,7 @@
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
+from uuid import UUID
 from .models import ConversationMember, Message, MessageRead
 from accounts.models import User
 
@@ -17,14 +18,15 @@ def is_user_member(user_id, conversation_id):
 
 
 @database_sync_to_async
-def save_message_to_db(user, conversation_id, content):
+def save_message_to_db(user, conversation_id, content, client_message_id):
     """Gelen mesajı PostgreSQL/SQLite veritabanına kaydeder."""
-    return Message.objects.create(
+    message, created = Message.objects.get_or_create(
         conversation_id=conversation_id,
         sender=user,
-        content=content,
-        message_type='text'
+        client_message_id=client_message_id,
+        defaults={'content': content, 'message_type': 'text'},
     )
+    return message, created
 
 
 @database_sync_to_async
@@ -134,6 +136,16 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
     async def handle_message_send(self, data):
         content = data.get("content", "").strip()
+        client_message_id = data.get("client_message_id")
+
+        if not client_message_id:
+            await self.send_json({"type": "error", "data": {"code": "CLIENT_MESSAGE_ID_REQUIRED", "message": "client_message_id is required."}})
+            return
+        try:
+            UUID(str(client_message_id))
+        except (ValueError, TypeError, AttributeError):
+            await self.send_json({"type": "error", "data": {"code": "CLIENT_MESSAGE_ID_INVALID", "message": "client_message_id must be a UUID."}})
+            return
 
         if not content:
             await self.send_json({
@@ -143,7 +155,19 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             return
 
         # GERÇEK VERİTABANINA MESAJI KAYDET
-        msg = await save_message_to_db(self.user, int(self.conversation_id), content)
+        msg, created = await save_message_to_db(self.user, int(self.conversation_id), content, client_message_id)
+
+        await self.send_json({
+            "type": "message.ack",
+            "data": {
+                "client_message_id": client_message_id,
+                "message_id": msg.id,
+                "conversation_id": int(self.conversation_id),
+                "created_at": msg.created_at.isoformat(),
+            },
+        })
+        if not created:
+            return
 
         # GERÇEK VERİTABANI MESAJ BİLGİSİ İLE ROOM'A YAYINLA
         await self.channel_layer.group_send(
@@ -152,6 +176,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 "type": "chat_message_event",
                 "message_data": {
                     "id": msg.id,  # Gerçek DB mesaj ID'si
+                    "client_message_id": client_message_id,
                     "conversation_id": int(self.conversation_id),
                     "sender": {
                         "id": self.user.id,

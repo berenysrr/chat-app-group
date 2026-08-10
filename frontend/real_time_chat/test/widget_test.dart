@@ -5,6 +5,6 @@ void main() {
   testWidgets('App loads splash screen test', (WidgetTester tester) async {
     await tester.pumpWidget(const RealTimeChatApp());
     expect(find.text('RealTime Chat'), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 1500));
+    await tester.pump(const Duration(milliseconds: 2300));
   });
 }

@@ -18,25 +18,36 @@ class ChatBackendTests(APITestCase):
     def test_create_private_conversation(self):
         response = self.client.post('/api/conversations/', {
             'type': 'private',
-            'target_user_id': self.user2.id
+            'member_ids': [self.user2.id]
         }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['type'], 'private')
         self.assertEqual(len(response.data['members']), 2)
 
+    def test_conversation_list_uses_contract_results_wrapper(self):
+        conversation = Conversation.objects.create(type='private', created_by=self.user1)
+        ConversationMember.objects.create(conversation=conversation, user=self.user1, role='admin')
+        ConversationMember.objects.create(conversation=conversation, user=self.user2, role='member')
+
+        response = self.client.get('/api/conversations/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('results', response.data)
+        self.assertEqual(response.data['results'][0]['id'], conversation.id)
+
     def test_create_duplicate_private_conversation_returns_existing(self):
         # İlk private conversation
         res1 = self.client.post('/api/conversations/', {
             'type': 'private',
-            'target_user_id': self.user2.id
+            'member_ids': [self.user2.id]
         }, format='json')
         self.assertEqual(res1.status_code, status.HTTP_201_CREATED)
 
         # Tekrar aynı kullanıcı ile private conversation açmaya çalış
         res2 = self.client.post('/api/conversations/', {
             'type': 'private',
-            'target_user_id': self.user2.id
+            'member_ids': [self.user2.id]
         }, format='json')
         self.assertEqual(res2.status_code, status.HTTP_201_CREATED)
         self.assertEqual(res1.data['id'], res2.data['id'])
@@ -53,9 +64,8 @@ class ChatBackendTests(APITestCase):
         self.assertEqual(response.data['name'], 'Dev Team')
         self.assertEqual(len(response.data['members']), 3)
 
-    def test_group_max_10_members_validation(self):
-        # 10 kişiden fazla üye eklemeyi dene
-        users = [User.objects.create_user(username=f'u{i}', email=f'u{i}@example.com', password='pass') for i in range(11)]
+    def test_group_max_5_members_validation(self):
+        users = [User.objects.create_user(username=f'u{i}', email=f'u{i}@example.com', password='pass') for i in range(5)]
         user_ids = [u.id for u in users]
 
         response = self.client.post('/api/conversations/', {
@@ -65,6 +75,20 @@ class ChatBackendTests(APITestCase):
         }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_non_admin_cannot_rename_group(self):
+        conversation = Conversation.objects.create(type='group', name='Team', created_by=self.user1)
+        ConversationMember.objects.create(conversation=conversation, user=self.user1, role='admin')
+        ConversationMember.objects.create(conversation=conversation, user=self.user2, role='member')
+
+        self.client.force_authenticate(user=self.user2)
+        response = self.client.patch(
+            f'/api/conversations/{conversation.id}/',
+            {'name': 'Renamed'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_non_member_cannot_access_conversation(self):
         conv = Conversation.objects.create(type='private', created_by=self.user2)

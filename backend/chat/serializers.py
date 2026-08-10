@@ -75,7 +75,6 @@ class ConversationSerializer(serializers.ModelSerializer):
     last_message = serializers.SerializerMethodField()
     
     # Yeni sohbet oluşturma parametreleri (Write-only)
-    target_user_id = serializers.IntegerField(write_only=True, required=False)
     member_ids = serializers.ListField(
         child=serializers.IntegerField(), 
         write_only=True, 
@@ -93,7 +92,6 @@ class ConversationSerializer(serializers.ModelSerializer):
             'last_message', 
             'created_at', 
             'updated_at',
-            'target_user_id',
             'member_ids'
         )
         read_only_fields = ('id', 'created_by', 'members', 'last_message', 'created_at', 'updated_at')
@@ -109,13 +107,14 @@ class ConversationSerializer(serializers.ModelSerializer):
         request_user = self.context['request'].user
 
         if conv_type == 'private':
-            target_user_id = attrs.get('target_user_id')
-            if not target_user_id:
-                raise serializers.ValidationError({"target_user_id": "Özel sohbet için hedef kullanıcı ID'si gereklidir."})
+            member_ids = set(attrs.get('member_ids', [])) - {request_user.id}
+            if len(member_ids) != 1:
+                raise serializers.ValidationError({"member_ids": "Özel sohbet tam olarak bir başka kullanıcı içermelidir."})
+            target_user_id = member_ids.pop()
             if target_user_id == request_user.id:
-                raise serializers.ValidationError({"target_user_id": "Kendinizle sohbet başlatamazsınız."})
+                raise serializers.ValidationError({"member_ids": "Kendinizle sohbet başlatamazsınız."})
             if not User.objects.filter(id=target_user_id).exists():
-                raise serializers.ValidationError({"target_user_id": "Hedef kullanıcı bulunamadı."})
+                raise serializers.ValidationError({"member_ids": "Hedef kullanıcı bulunamadı."})
 
         elif conv_type == 'group':
             name = attrs.get('name')
@@ -126,9 +125,8 @@ class ConversationSerializer(serializers.ModelSerializer):
             # Grubu kuran kişi haricinde seçilen üyelerin kontrolü
             unique_member_ids = set(member_ids) - {request_user.id}
             
-            # Şartname kuralı: Grup maksimum 10 kişiden oluşabilir (kuran + maks 9 üye)
-            if len(unique_member_ids) + 1 > 10:
-                raise serializers.ValidationError({"member_ids": "Bir grup sohbeti en fazla 10 kişiden oluşabilir."})
+            if len(unique_member_ids) + 1 > 5:
+                raise serializers.ValidationError({"member_ids": "Bir grup sohbeti en fazla 5 kişiden oluşabilir."})
 
         return attrs
 
@@ -137,7 +135,8 @@ class ConversationSerializer(serializers.ModelSerializer):
         request_user = self.context['request'].user
 
         if conv_type == 'private':
-            target_user_id = validated_data.pop('target_user_id')
+            member_ids = set(validated_data.pop('member_ids', [])) - {request_user.id}
+            target_user_id = member_ids.pop()
             target_user = User.objects.get(id=target_user_id)
 
             # Önceden ikisi arasında private bir conversation var mı kontrol et
