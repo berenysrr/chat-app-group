@@ -3,17 +3,25 @@ import 'dart:async';
 import '../models/chat_models.dart';
 import 'web_socket_service.dart';
 
+class MockPresenceStep {
+  const MockPresenceStep({required this.delay, required this.isOnline});
+  final Duration delay;
+  final bool isOnline;
+}
+
 class MockWebSocketService implements WebSocketService {
   MockWebSocketService({
     this.conversationId = 3,
     this.currentUserId = 1,
     this.peerId = 2,
     this.peerUsername = 'Ece',
+    this.presenceSchedule = const [],
   });
   final int conversationId;
   final int currentUserId;
   final int peerId;
   final String peerUsername;
+  final List<MockPresenceStep> presenceSchedule;
   var _nextId = 100;
   bool failNextSend = false;
   int connectCalls = 0;
@@ -58,7 +66,9 @@ class MockWebSocketService implements WebSocketService {
     await Future<void>.delayed(const Duration(milliseconds: 250));
     _states.add(SocketConnectionState.connected);
     _connected = true;
-    setPeerOnline(true);
+    for (final step in presenceSchedule) {
+      _timers.add(Timer(step.delay, () => setPeerOnline(step.isOnline)));
+    }
   }
 
   @override
@@ -120,9 +130,17 @@ class MockWebSocketService implements WebSocketService {
       : 'Mesajını aldım, teşekkürler!';
 
   void setPeerOnline(bool online) {
+    emitPresence(userId: peerId, username: peerUsername, online: online);
+  }
+
+  void emitPresence({
+    required int userId,
+    required String username,
+    required bool online,
+  }) {
     final event = PresenceEvent(
-      userId: peerId,
-      username: peerUsername,
+      userId: userId,
+      username: username,
       isOnline: online,
       lastSeen: online ? null : DateTime.now(),
     );

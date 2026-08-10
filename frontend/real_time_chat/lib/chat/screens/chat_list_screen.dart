@@ -63,6 +63,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
         currentUserId: root.currentUser.id,
         peerId: peer.id,
         peerUsername: peer.username,
+        presenceSchedule: peer.id == 3
+            ? const [
+                MockPresenceStep(delay: Duration(seconds: 1), isOnline: true),
+                MockPresenceStep(delay: Duration(seconds: 4), isOnline: false),
+              ]
+            : const [],
       ),
       currentUser: root.currentUser,
       peer: peer,

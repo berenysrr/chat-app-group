@@ -23,7 +23,11 @@ class ChatApp extends StatelessWidget {
     final socket =
         socketOverride ??
         (useMockSocket
-            ? MockWebSocketService()
+            ? MockWebSocketService(
+                presenceSchedule: const [
+                  MockPresenceStep(delay: Duration(seconds: 2), isOnline: true),
+                ],
+              )
             : ContractWebSocketService(
                 uri: Uri.parse(
                   const String.fromEnvironment(

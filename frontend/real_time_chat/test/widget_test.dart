@@ -67,19 +67,48 @@ void main() {
     expect(find.text('Mesaj yaz…'), findsOneWidget);
   });
 
-  testWidgets('presence badge follows mock online and offline events', (
+  testWidgets('presence events update only their matching users', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const ChatApp());
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const ValueKey('online-2')), findsNothing);
+    expect(find.byKey(const ValueKey('online-3')), findsNothing);
+    expect(find.byKey(const ValueKey('online-4')), findsNothing);
+
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byKey(const ValueKey('online-3')), findsOneWidget);
+    expect(find.byKey(const ValueKey('online-2')), findsNothing);
+
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byKey(const ValueKey('online-2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('online-3')), findsOneWidget);
+    expect(find.byKey(const ValueKey('online-4')), findsNothing);
+
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.byKey(const ValueKey('online-2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('online-3')), findsNothing);
+    expect(find.byKey(const ValueKey('online-4')), findsNothing);
+  });
+
+  testWidgets('unknown presence is ignored and detail shares list state', (
     tester,
   ) async {
     final socket = MockWebSocketService();
     await tester.pumpWidget(ChatApp(socketOverride: socket));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byKey(const ValueKey('online-2')), findsOneWidget);
-    socket.setPeerOnline(false);
+    socket.emitPresence(userId: 999, username: 'Bilinmeyen', online: true);
     await tester.pump();
     expect(find.byKey(const ValueKey('online-2')), findsNothing);
-    await socket.disconnect();
+    expect(find.byKey(const ValueKey('online-3')), findsNothing);
+    expect(find.byKey(const ValueKey('online-4')), findsNothing);
+
+    socket.setPeerOnline(true);
     await tester.pump();
-    expect(find.text('Bağlantı yok'), findsOneWidget);
+    expect(find.byKey(const ValueKey('online-2')), findsOneWidget);
+    await tester.tap(find.text('Ece'));
+    await tester.pumpAndSettle();
+    expect(find.text('çevrimiçi'), findsOneWidget);
   });
 
   testWidgets('new chat button opens the contact picker placeholder', (
