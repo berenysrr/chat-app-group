@@ -82,6 +82,7 @@ Alanlar:
 * id
 * conversation
 * sender
+* client_message_id
 * content
 * message_type
 * created_at
@@ -100,6 +101,8 @@ Kurallar:
 * Mesaj yalnızca conversation üyesi tarafından gönderilebilir.
 * Mesaj sender bilgisine sahip olmalıdır.
 * Mesaj conversation'a bağlı olmalıdır.
+* client_message_id frontend tarafından üretilen UUID olmalıdır.
+* Aynı sender aynı conversation içinde aynı client_message_id ile birden fazla Message oluşturamaz.
 
 ---
 
