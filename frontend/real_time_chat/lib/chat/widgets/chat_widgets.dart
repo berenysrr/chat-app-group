@@ -19,24 +19,47 @@ class UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final avatarColor = _avatarColors[user.id.abs() % _avatarColors.length];
+    final initials = _initials(user.username);
+    final fallback = DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color.lerp(avatarColor, Colors.white, .2)!, avatarColor],
+        ),
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: TextStyle(
+            fontSize: radius * .68,
+            fontWeight: FontWeight.w700,
+            color: _foregroundFor(avatarColor),
+          ),
+        ),
+      ),
+    );
     final avatar = Stack(
       clipBehavior: Clip.none,
       children: [
-        CircleAvatar(
-          radius: radius,
-          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-          foregroundImage: user.avatar == null
-              ? null
-              : NetworkImage(user.avatar!),
-          child: user.avatar == null
-              ? Text(
-                  user.username.characters.first.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: radius * .72,
-                    fontWeight: FontWeight.w700,
+        Semantics(
+          image: true,
+          label: '${user.username} profil resmi',
+          child: SizedBox.square(
+            key: ValueKey('avatar-${user.id}'),
+            dimension: radius * 2,
+            child: user.avatar == null || user.avatar!.trim().isEmpty
+                ? fallback
+                : ClipOval(
+                    child: Image.network(
+                      user.avatar!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => fallback,
+                    ),
                   ),
-                )
-              : null,
+          ),
         ),
         if (online)
           Positioned(
@@ -61,6 +84,33 @@ class UserAvatar extends StatelessWidget {
     return heroTag == null ? avatar : Hero(tag: heroTag!, child: avatar);
   }
 }
+
+const _avatarColors = <Color>[
+  Color(0xff7c9cf5),
+  Color(0xff58b88a),
+  Color(0xff38b7b0),
+  Color(0xff9b7bd3),
+  Color(0xffdf7fa5),
+  Color(0xffe59a62),
+  Color(0xff5977b9),
+  Color(0xff69bfa5),
+];
+
+String _initials(String username) {
+  final parts = username
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((part) => part.isNotEmpty)
+      .toList();
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) return parts.first.characters.first.toUpperCase();
+  return '${parts.first.characters.first}${parts.last.characters.first}'
+      .toUpperCase();
+}
+
+Color _foregroundFor(Color background) => background.computeLuminance() > .48
+    ? const Color(0xff183047)
+    : Colors.white;
 
 class ConnectionBanner extends StatelessWidget {
   const ConnectionBanner({

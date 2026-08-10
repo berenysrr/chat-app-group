@@ -124,9 +124,15 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: 72,
+        titleSpacing: 20,
         title: const Text(
           'Sohbetler',
-          style: TextStyle(fontWeight: FontWeight.w700),
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -.6,
+          ),
         ),
       ),
       body: Column(
@@ -137,7 +143,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 controller.connection == SocketConnectionState.reconnecting,
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
             child: TextField(
               key: const Key('chat-search'),
               onChanged: (value) =>
@@ -145,19 +151,31 @@ class _ChatListScreenState extends State<ChatListScreen> {
               decoration: InputDecoration(
                 hintText: 'Ara veya yeni sohbet başlatın',
                 prefixIcon: const Icon(Icons.search_rounded),
+                prefixIconColor: Theme.of(context).colorScheme.onSurfaceVariant,
                 filled: true,
-                fillColor: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerHighest,
+                fillColor: Theme.of(context).colorScheme.surfaceContainerHigh,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(30),
                   borderSide: BorderSide.none,
                 ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: BorderSide(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: .35),
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 15),
               ),
             ),
           ),
           SizedBox(
-            height: 46,
+            height: 48,
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -181,6 +199,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
             child: previews.isEmpty
                 ? const _EmptyResults()
                 : ListView.builder(
+                    padding: const EdgeInsets.only(top: 4, bottom: 92),
                     itemCount: previews.length,
                     itemBuilder: (context, index) {
                       final preview = previews[index];
@@ -199,6 +218,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        tooltip: 'Yeni sohbet',
         onPressed: () => Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => const _ContactPickerPlaceholder(),
@@ -251,6 +271,21 @@ class _FilterChip extends StatelessWidget {
     selected: selected,
     onSelected: (_) => onSelected(),
     showCheckmark: false,
+    labelStyle: TextStyle(
+      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+      color: selected
+          ? Theme.of(context).colorScheme.onPrimaryContainer
+          : Theme.of(context).colorScheme.onSurfaceVariant,
+    ),
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    selectedColor: Theme.of(context).colorScheme.primaryContainer,
+    side: BorderSide(
+      color: selected
+          ? Colors.transparent
+          : Theme.of(context).colorScheme.outlineVariant,
+    ),
+    shape: const StadiumBorder(),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
   );
 }
 
@@ -261,15 +296,32 @@ class _EmptyResults extends StatelessWidget {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          Icons.search_off_rounded,
-          size: 40,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.search_off_rounded,
+            size: 34,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+          ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 14),
         Text(
           'Eşleşen sohbet bulunamadı',
-          style: Theme.of(context).textTheme.bodyLarge,
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Farklı bir ad veya mesaj aramayı deneyin.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     ),
@@ -310,59 +362,77 @@ class _ChatRow extends StatelessWidget {
   Widget build(BuildContext context) => InkWell(
     key: ValueKey('conversation-${preview.conversationId}'),
     onTap: onTap,
+    borderRadius: BorderRadius.circular(16),
     child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
       child: Row(
         children: [
           UserAvatar(
             user: preview.user,
             online: online,
+            radius: 27,
             heroTag: onTap == null ? null : 'avatar-${preview.user.id}',
           ),
-          const SizedBox(width: 13),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        preview.user.username,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      _previewTime(preview.updatedAt),
-                      style: Theme.of(context).textTheme.labelMedium,
-                    ),
-                  ],
+                Text(
+                  preview.user.username,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: preview.unreadCount > 0
+                        ? FontWeight.w800
+                        : FontWeight.w700,
+                    fontSize: 16.5,
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        typing ? 'yazıyor…' : preview.lastMessage,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: typing
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                    if (preview.unreadCount > 0)
-                      _UnreadBadge(
-                        conversationId: preview.conversationId,
-                        count: preview.unreadCount,
-                      ),
-                  ],
+                const SizedBox(height: 5),
+                Text(
+                  typing ? 'yazıyor…' : preview.lastMessage,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: preview.unreadCount > 0
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                    color: typing
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 54,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  _previewTime(preview.updatedAt),
+                  maxLines: 1,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: preview.unreadCount > 0
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontWeight: preview.unreadCount > 0
+                        ? FontWeight.w700
+                        : FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (preview.unreadCount > 0)
+                  _UnreadBadge(
+                    conversationId: preview.conversationId,
+                    count: preview.unreadCount,
+                  )
+                else
+                  const SizedBox(height: 21),
               ],
             ),
           ),
@@ -379,7 +449,6 @@ class _UnreadBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     key: ValueKey('unread-$conversationId'),
-    margin: const EdgeInsets.only(left: 8),
     constraints: const BoxConstraints(minWidth: 21, minHeight: 21),
     alignment: Alignment.center,
     decoration: BoxDecoration(

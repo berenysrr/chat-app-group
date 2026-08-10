@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_time_chat/main.dart';
+import 'package:real_time_chat/chat/models/chat_models.dart';
 import 'package:real_time_chat/chat/services/mock_web_socket_service.dart';
+import 'package:real_time_chat/chat/widgets/chat_widgets.dart';
 
 void main() {
   testWidgets('opening a chat clears its unread badge', (tester) async {
@@ -168,4 +170,49 @@ void main() {
       );
     },
   );
+
+  testWidgets('fallback avatar color is stable per user and differs by id', (
+    tester,
+  ) async {
+    Future<Color> avatarColor(ChatUser user) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: UserAvatar(user: user)),
+        ),
+      );
+      final decoration =
+          tester
+                  .widget<DecoratedBox>(
+                    find.descendant(
+                      of: find.byKey(ValueKey('avatar-${user.id}')),
+                      matching: find.byType(DecoratedBox),
+                    ),
+                  )
+                  .decoration
+              as BoxDecoration;
+      return (decoration.gradient! as LinearGradient).colors.last;
+    }
+
+    final firstEceColor = await avatarColor(
+      const ChatUser(id: 2, username: 'Ece'),
+    );
+    final mertColor = await avatarColor(
+      const ChatUser(id: 3, username: 'Mert'),
+    );
+    final rebuiltEceColor = await avatarColor(
+      const ChatUser(id: 2, username: 'Ece'),
+    );
+
+    expect(firstEceColor, rebuiltEceColor);
+    expect(firstEceColor, isNot(mertColor));
+  });
+
+  testWidgets('chat list does not overflow on a narrow screen', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const ChatApp());
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Sohbetler'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
