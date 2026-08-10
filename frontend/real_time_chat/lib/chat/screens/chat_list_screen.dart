@@ -320,13 +320,6 @@ class _ChatRow extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    if (preview.lastMessageIsMine) ...[
-                      MessageStatusIcon(
-                        key: ValueKey('status-${preview.conversationId}'),
-                        status: preview.lastMessageStatus,
-                      ),
-                      const SizedBox(width: 4),
-                    ],
                     Expanded(
                       child: Text(
                         preview.user.username,

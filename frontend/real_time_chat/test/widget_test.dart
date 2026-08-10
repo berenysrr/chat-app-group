@@ -114,7 +114,6 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.byKey(const ValueKey('status-4')), findsOneWidget);
       final mertTop = tester
           .getTopLeft(find.byKey(const ValueKey('conversation-4')))
           .dy;
