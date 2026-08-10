@@ -7,13 +7,34 @@ import '../services/web_socket_service.dart';
 import '../widgets/chat_widgets.dart';
 import 'chat_detail_screen.dart';
 
-class ChatListScreen extends StatelessWidget {
+enum _ChatFilter { all, unread }
+
+class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
+  @override
+  State<ChatListScreen> createState() => _ChatListScreenState();
+}
+
+class _ChatListScreenState extends State<ChatListScreen> {
+  String _query = '';
+  _ChatFilter _filter = _ChatFilter.all;
 
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<ChatController>();
-    final previews = _previews(controller);
+    final allPreviews = _previews(controller);
+    final unreadConversations = allPreviews
+        .where((item) => item.unreadCount > 0)
+        .length;
+    final previews = allPreviews.where((preview) {
+      final queryMatches =
+          preview.user.username.toLowerCase().contains(_query) ||
+          preview.lastMessage.toLowerCase().contains(_query);
+      final filterMatches =
+          _filter == _ChatFilter.all || preview.unreadCount > 0;
+      return queryMatches && filterMatches;
+    }).toList();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -21,7 +42,6 @@ class ChatListScreen extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
         actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.search_rounded)),
           IconButton(
             onPressed: () {},
             icon: const Icon(Icons.more_vert_rounded),
@@ -35,22 +55,66 @@ class ChatListScreen extends StatelessWidget {
             reconnecting:
                 controller.connection == SocketConnectionState.reconnecting,
           ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: previews.length,
-              itemBuilder: (context, index) => _ChatRow(
-                preview: previews[index],
-                online: index == 0 && controller.peerIsOnline,
-                typing: index == 0 && controller.peerIsTyping,
-                onTap: index == 0
-                    ? () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const ChatDetailScreen(),
-                        ),
-                      )
-                    : null,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: TextField(
+              key: const Key('chat-search'),
+              onChanged: (value) =>
+                  setState(() => _query = value.trim().toLowerCase()),
+              decoration: InputDecoration(
+                hintText: 'Ara veya yeni sohbet başlatın',
+                prefixIcon: const Icon(Icons.search_rounded),
+                filled: true,
+                fillColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(28),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
+          ),
+          SizedBox(
+            height: 46,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              children: [
+                _FilterChip(
+                  label: 'Tümü',
+                  selected: _filter == _ChatFilter.all,
+                  onSelected: () => setState(() => _filter = _ChatFilter.all),
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: 'Okunmamış ($unreadConversations)',
+                  selected: _filter == _ChatFilter.unread,
+                  onSelected: () =>
+                      setState(() => _filter = _ChatFilter.unread),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: previews.isEmpty
+                ? const _EmptyResults()
+                : ListView.builder(
+                    itemCount: previews.length,
+                    itemBuilder: (context, index) {
+                      final preview = previews[index];
+                      final active =
+                          preview.conversationId == controller.conversationId;
+                      return _ChatRow(
+                        preview: preview,
+                        online: active && controller.peerIsOnline,
+                        typing: active && controller.peerIsTyping,
+                        onTap: active
+                            ? () => _openConversation(controller)
+                            : null,
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -59,6 +123,14 @@ class ChatListScreen extends StatelessWidget {
         child: const Icon(Icons.chat_rounded),
       ),
     );
+  }
+
+  Future<void> _openConversation(ChatController controller) async {
+    controller.openConversation();
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const ChatDetailScreen()));
+    controller.closeConversation();
   }
 
   List<ChatPreview> _previews(ChatController controller) => [
@@ -71,7 +143,7 @@ class ChatListScreen extends StatelessWidget {
       updatedAt: controller.messages.isEmpty
           ? DateTime.now()
           : controller.messages.last.createdAt,
-      unreadCount: 2,
+      unreadCount: controller.unreadCount,
     ),
     ChatPreview(
       conversationId: 4,
@@ -86,6 +158,46 @@ class ChatListScreen extends StatelessWidget {
       updatedAt: DateTime.now().subtract(const Duration(days: 1)),
     ),
   ];
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+  @override
+  Widget build(BuildContext context) => ChoiceChip(
+    label: Text(label),
+    selected: selected,
+    onSelected: (_) => onSelected(),
+    showCheckmark: false,
+  );
+}
+
+class _EmptyResults extends StatelessWidget {
+  const _EmptyResults();
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.search_off_rounded,
+          size: 40,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Eşleşen sohbet bulunamadı',
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+      ],
+    ),
+  );
 }
 
 class _ChatRow extends StatelessWidget {
@@ -150,7 +262,10 @@ class _ChatRow extends StatelessWidget {
                       ),
                     ),
                     if (preview.unreadCount > 0)
-                      _UnreadBadge(count: preview.unreadCount),
+                      _UnreadBadge(
+                        conversationId: preview.conversationId,
+                        count: preview.unreadCount,
+                      ),
                   ],
                 ),
               ],
@@ -163,10 +278,12 @@ class _ChatRow extends StatelessWidget {
 }
 
 class _UnreadBadge extends StatelessWidget {
-  const _UnreadBadge({required this.count});
+  const _UnreadBadge({required this.conversationId, required this.count});
+  final int conversationId;
   final int count;
   @override
   Widget build(BuildContext context) => Container(
+    key: ValueKey('unread-$conversationId'),
     margin: const EdgeInsets.only(left: 8),
     constraints: const BoxConstraints(minWidth: 21, minHeight: 21),
     alignment: Alignment.center,
