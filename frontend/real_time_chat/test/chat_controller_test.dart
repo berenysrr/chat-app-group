@@ -118,6 +118,39 @@ void main() {
     controller.dispose();
   });
 
+  test(
+    'mock replies use contract models and a deterministic sequence',
+    () async {
+      final socket = MockWebSocketService(
+        conversationId: 3,
+        peerId: 2,
+        peerUsername: 'Ece',
+      );
+      final replies = <ChatMessage>[];
+      final subscription = socket.listenMessage().listen(replies.add);
+      await socket.connect();
+
+      socket.sendMessage(clientMessageId: 'first', content: 'İlk mesaj');
+      socket.sendMessage(clientMessageId: 'second', content: 'İkinci mesaj');
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+
+      expect(replies.map((message) => message.content), [
+        'Tamamdır, teşekkürler.',
+        'Dosyayı birazdan kontrol edeceğim.',
+      ]);
+      expect(replies.every((message) => message.conversationId == 3), isTrue);
+      expect(replies.every((message) => message.sender.id == 2), isTrue);
+      expect(replies.map((message) => message.id).toSet(), hasLength(2));
+      expect(
+        replies.map((message) => message.clientMessageId).toSet(),
+        hasLength(2),
+      );
+
+      await subscription.cancel();
+      await socket.dispose();
+    },
+  );
+
   test('read is sent once only while conversation is visible', () async {
     final socket = MockWebSocketService();
     final controller = buildController(socket);

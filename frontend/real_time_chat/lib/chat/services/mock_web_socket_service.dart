@@ -23,6 +23,7 @@ class MockWebSocketService implements WebSocketService {
   final String peerUsername;
   final List<MockPresenceStep> presenceSchedule;
   var _nextId = 100;
+  var _replyIndex = 0;
   bool failNextSend = false;
   int connectCalls = 0;
   int typingStartCalls = 0;
@@ -30,7 +31,6 @@ class MockWebSocketService implements WebSocketService {
   int readCalls = 0;
   bool _connected = false;
   bool _disposed = false;
-  Timer? _typingTimer;
   final List<Timer> _timers = [];
   final _states = StreamController<SocketConnectionState>.broadcast();
   final _messages = StreamController<ChatMessage>.broadcast();
@@ -106,28 +106,54 @@ class MockWebSocketService implements WebSocketService {
         ),
       ),
     );
-    _typing.add(
-      TypingEvent(userId: peerId, username: peerUsername, isTyping: true),
+    _emitTypingEvent(isTyping: true);
+    final reply = _nextReply();
+    _timers.add(
+      Timer(
+        const Duration(milliseconds: 800),
+        () => _emitTypingEvent(isTyping: false),
+      ),
     );
-    _typingTimer?.cancel();
-    _typingTimer = Timer(const Duration(seconds: 2), () {
-      _typing.add(TypingEvent(userId: peerId, isTyping: false));
-      _messages.add(
-        ChatMessage(
-          id: _nextId++,
-          clientMessageId: 'mock-$id',
-          conversationId: conversationId,
-          sender: ChatUser(id: peerId, username: peerUsername),
-          content: _replyFor(content),
-          createdAt: DateTime.now(),
-        ),
-      );
-    });
+    _timers.add(
+      Timer(const Duration(seconds: 1), () => _emitMessageEvent(reply)),
+    );
   }
 
-  String _replyFor(String content) => content.endsWith('?')
-      ? 'Evet, kulağa harika geliyor ✨'
-      : 'Mesajını aldım, teşekkürler!';
+  static const _replies = [
+    'Tamamdır, teşekkürler.',
+    'Dosyayı birazdan kontrol edeceğim.',
+    'Uygun, sonra görüşürüz.',
+    'Not aldım, haber veririm.',
+  ];
+
+  String _nextReply() {
+    final reply = _replies[_replyIndex % _replies.length];
+    _replyIndex++;
+    return reply;
+  }
+
+  void _emitTypingEvent({required bool isTyping}) {
+    final data = <String, dynamic>{'user_id': peerId};
+    if (isTyping) data['username'] = peerUsername;
+    _typing.add(TypingEvent.fromJson(data, isTyping: isTyping));
+  }
+
+  void _emitMessageEvent(String content) {
+    final id = _nextId++;
+    final data = <String, dynamic>{
+      'id': id,
+      'client_message_id': _mockClientMessageId(id),
+      'conversation_id': conversationId,
+      'sender': {'id': peerId, 'username': peerUsername, 'avatar': null},
+      'content': content,
+      'message_type': 'text',
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+    };
+    _messages.add(ChatMessage.fromJson(data));
+  }
+
+  String _mockClientMessageId(int id) =>
+      '00000000-0000-4000-8000-${id.toString().padLeft(12, '0')}';
 
   void setPeerOnline(bool online) {
     emitPresence(userId: peerId, username: peerUsername, online: online);
@@ -177,7 +203,6 @@ class MockWebSocketService implements WebSocketService {
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
-    _typingTimer?.cancel();
     for (final timer in _timers) {
       timer.cancel();
     }

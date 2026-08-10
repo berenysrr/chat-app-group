@@ -155,7 +155,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(const ValueKey('conversation-4')),
-          matching: find.text('Mesajını aldım, teşekkürler!'),
+          matching: find.text('Tamamdır, teşekkürler.'),
         ),
         findsOneWidget,
       );
