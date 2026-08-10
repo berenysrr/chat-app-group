@@ -347,6 +347,14 @@ Query parameters:
 
 `?page=1&page_size=30`
 
+Reconnect sonrası kaçan mesajları çekmek için:
+
+`?after_id=15`
+
+Eski mesajları sayfalı çekmek için:
+
+`?before_id=15&page_size=30`
+
 Mesajlar newest veya oldest sıralaması proje boyunca tek bir standartta kullanılmalıdır.
 
 Önerilen:
