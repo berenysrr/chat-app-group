@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
+import '../theme/app_theme.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -42,7 +43,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _handleUpdateProfile() async {
     final newUsername = _usernameController.text.trim();
     final newEmail = _emailController.text.trim();
-
     if (newUsername.isEmpty || newEmail.isEmpty) return;
 
     setState(() => _isSaving = true);
@@ -51,37 +51,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
         username: newUsername,
         email: newEmail,
       );
-
       if (!mounted) return;
-
       if (updatedUser != null) {
         setState(() => _currentUser = updatedUser);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile updated successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        _showSnackBar('Profile updated successfully', AppTheme.primary);
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceAll('Exception: ', '')),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showSnackBar(e.toString().replaceAll('Exception: ', ''), Colors.redAccent);
     } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
   Future<void> _handleLogout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final surface = AppTheme.surface(dialogContext);
+        final textPrimary = AppTheme.textPrimary(dialogContext);
+        final textSecondary = AppTheme.textSecondary(dialogContext);
+        return AlertDialog(
+          backgroundColor: surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Log out of RealTime?', style: TextStyle(color: textPrimary)),
+          content: Text(
+            'Are you sure you want to log out?',
+            style: TextStyle(color: textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text('Cancel', style: TextStyle(color: textSecondary)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Log Out'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirm != true) return;
     await _authService.logout();
     if (!mounted) return;
-    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+    Navigator.pushNamedAndRemoveUntil(context, '/login', (r) => false);
+  }
+
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   @override
@@ -93,119 +125,189 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final leftBg = AppTheme.leftPanelBg(context);
+    final border = AppTheme.cardBorder(context);
+    final textPrimary = AppTheme.textPrimary(context);
+    final textSecondary = AppTheme.textSecondary(context);
 
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primary),
+          strokeWidth: 2.5,
+        ),
+      );
     }
 
     if (_currentUser == null) {
-      return const Center(child: Text('Could not load profile.'));
+      return Center(
+        child: Text(
+          'Failed to load profile.',
+          style: TextStyle(color: textSecondary),
+        ),
+      );
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          const SizedBox(height: 12),
-          Stack(
-            children: [
-              CircleAvatar(
-                radius: 50,
-                backgroundColor: theme.colorScheme.primary,
-                child: Text(
-                  _currentUser!.username.isNotEmpty
-                      ? _currentUser!.username[0].toUpperCase()
-                      : 'U',
-                  style: const TextStyle(fontSize: 40, color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-              ),
-              Positioned(
-                bottom: 0,
-                right: 4,
-                child: Container(
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: Colors.green,
+          // WhatsApp Avatar Section
+          Center(
+            child: Stack(
+              children: [
+                Container(
+                  width: 130,
+                  height: 130,
+                  decoration: const BoxDecoration(
+                    color: AppTheme.primary,
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2.5),
+                  ),
+                  child: Center(
+                    child: Text(
+                      _currentUser!.username.isNotEmpty
+                          ? _currentUser!.username[0].toUpperCase()
+                          : 'U',
+                      style: const TextStyle(
+                        fontSize: 52,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
+                Positioned(
+                  bottom: 4,
+                  right: 4,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: const BoxDecoration(
+                      color: AppTheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 28),
+
+          // Profile Name Field
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: leftBg,
+              border: Border(
+                bottom: BorderSide(color: border, width: 1),
               ),
-            ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Your Name',
+                  style: TextStyle(
+                    color: AppTheme.primary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _usernameController,
+                  style: TextStyle(color: textPrimary, fontSize: 16),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Email Field
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: leftBg,
+              border: Border(
+                bottom: BorderSide(color: border, width: 1),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Email Address',
+                  style: TextStyle(
+                    color: AppTheme.primary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  style: TextStyle(color: textPrimary, fontSize: 16),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 28),
+
+          // Save Changes Button
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+              backgroundColor: AppTheme.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: _isSaving ? null : _handleUpdateProfile,
+            child: _isSaving
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text('Save Profile',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
           ),
           const SizedBox(height: 16),
-          Text(
-            _currentUser!.username,
-            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          Text(
-            _currentUser!.email,
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 32),
 
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 1,
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Edit Details',
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _usernameController,
-                    decoration: InputDecoration(
-                      labelText: 'Username',
-                      prefixIcon: const Icon(Icons.person_outline),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _emailController,
-                    decoration: InputDecoration(
-                      labelText: 'Email',
-                      prefixIcon: const Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: _isSaving ? null : _handleUpdateProfile,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: _isSaving
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Save Changes'),
-                  ),
-                ],
+          // Logout Button
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+              foregroundColor: Colors.redAccent,
+              side: const BorderSide(color: Colors.redAccent),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
-          ),
-          const SizedBox(height: 32),
-
-          OutlinedButton.icon(
             onPressed: _handleLogout,
-            icon: const Icon(Icons.logout_rounded, color: Colors.red),
-            label: const Text('Logout', style: TextStyle(color: Colors.red)),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-              side: const BorderSide(color: Colors.red),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
+            icon: const Icon(Icons.logout_rounded, size: 20),
+            label: const Text('Log Out',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
           ),
         ],
       ),

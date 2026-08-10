@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import '../models/conversation_model.dart';
+import '../models/message_model.dart';
 import 'api_client.dart';
 
 class ChatService {
@@ -43,5 +44,19 @@ class ChatService {
       throw Exception(message);
     }
     return null;
+  }
+
+  Future<List<MessageModel>> getMessages(int conversationId) async {
+    try {
+      final response = await _client.dio.get(
+        '/api/chat/conversations/$conversationId/messages/',
+      );
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .map((json) => MessageModel.fromJson(json))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
   }
 }
