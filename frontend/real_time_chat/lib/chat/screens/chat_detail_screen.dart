@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/chat_controller.dart';
+import '../models/chat_models.dart';
 import '../services/web_socket_service.dart';
 import '../widgets/chat_widgets.dart';
 
@@ -11,13 +12,15 @@ class ChatDetailScreen extends StatefulWidget {
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
 }
 
-class _ChatDetailScreenState extends State<ChatDetailScreen> {
+class _ChatDetailScreenState extends State<ChatDetailScreen>
+    with WidgetsBindingObserver {
   final scrollController = ScrollController();
   int previousCount = 0;
   bool showJumpButton = false;
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     scrollController.addListener(_onScroll);
   }
 
@@ -37,7 +40,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    context.read<ChatController>().setAppForeground(
+      state == AppLifecycleState.resumed,
+    );
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     scrollController.dispose();
     super.dispose();
   }
@@ -90,11 +101,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.videocam_outlined),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'reconnect') controller.reconnect();
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'reconnect',
+                child: Text('Bağlantıyı yenile'),
+              ),
+            ],
           ),
-          IconButton(onPressed: () {}, icon: const Icon(Icons.call_outlined)),
         ],
       ),
       body: Column(
@@ -107,59 +124,68 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           Expanded(
             child: Stack(
               children: [
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xff101916)
-                        : const Color(0xffeef4f0),
+                if (controller.messages.isEmpty)
+                  const Center(child: Text('Henüz mesaj yok'))
+                else
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xff101916)
+                          : const Color(0xffeef4f0),
+                    ),
+                    child: ListView.builder(
+                      controller: scrollController,
+                      reverse: true,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount:
+                          controller.messages.length +
+                          (controller.peerIsTyping ? 1 : 0),
+                      itemBuilder: (context, reversedIndex) {
+                        if (controller.peerIsTyping && reversedIndex == 0) {
+                          return const TypingIndicator();
+                        }
+                        final offset = controller.peerIsTyping ? 1 : 0;
+                        final index =
+                            controller.messages.length -
+                            1 -
+                            (reversedIndex - offset);
+                        final message = controller.messages[index];
+                        final next = index + 1 < controller.messages.length
+                            ? controller.messages[index + 1]
+                            : null;
+                        final showTail =
+                            next == null ||
+                            next.sender.id != message.sender.id ||
+                            next.createdAt
+                                    .difference(message.createdAt)
+                                    .inMinutes >
+                                3;
+                        final previous = index > 0
+                            ? controller.messages[index - 1]
+                            : null;
+                        final showDate =
+                            previous == null ||
+                            !_sameDay(previous.createdAt, message.createdAt);
+                        return Column(
+                          children: [
+                            if (showDate)
+                              DateSeparator(date: message.createdAt),
+                            MessageBubble(
+                              key: ValueKey(message.clientMessageId),
+                              message: message,
+                              isMine: message.isMine(controller.currentUser.id),
+                              showTail: showTail,
+                              onRetry: message.status == MessageStatus.failed
+                                  ? () => controller.retryMessage(
+                                      message.clientMessageId,
+                                    )
+                                  : null,
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
-                  child: ListView.builder(
-                    controller: scrollController,
-                    reverse: true,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount:
-                        controller.messages.length +
-                        (controller.peerIsTyping ? 1 : 0),
-                    itemBuilder: (context, reversedIndex) {
-                      if (controller.peerIsTyping && reversedIndex == 0) {
-                        return const TypingIndicator();
-                      }
-                      final offset = controller.peerIsTyping ? 1 : 0;
-                      final index =
-                          controller.messages.length -
-                          1 -
-                          (reversedIndex - offset);
-                      final message = controller.messages[index];
-                      final next = index + 1 < controller.messages.length
-                          ? controller.messages[index + 1]
-                          : null;
-                      final showTail =
-                          next == null ||
-                          next.sender.id != message.sender.id ||
-                          next.createdAt
-                                  .difference(message.createdAt)
-                                  .inMinutes >
-                              3;
-                      final previous = index > 0
-                          ? controller.messages[index - 1]
-                          : null;
-                      final showDate =
-                          previous == null ||
-                          !_sameDay(previous.createdAt, message.createdAt);
-                      return Column(
-                        children: [
-                          if (showDate) DateSeparator(date: message.createdAt),
-                          MessageBubble(
-                            key: ValueKey(message.clientMessageId),
-                            message: message,
-                            isMine: message.isMine(controller.currentUser.id),
-                            showTail: showTail,
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
                 if (showJumpButton)
                   Positioned(
                     right: 16,
@@ -176,6 +202,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             onSend: controller.send,
             onChanged: controller.onInputChanged,
           ),
+          if (controller.errorMessage != null)
+            MaterialBanner(
+              content: Text(controller.errorMessage!),
+              actions: [
+                TextButton(
+                  onPressed: () => controller.reconnect(),
+                  child: const Text('Yeniden bağlan'),
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -183,6 +219,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 }
 
 String _subtitle(ChatController controller) {
+  if (controller.connection == SocketConnectionState.connecting ||
+      controller.connection == SocketConnectionState.reconnecting) {
+    return 'Bağlantı kuruluyor…';
+  }
   if (controller.peerIsTyping) return 'yazıyor…';
   if (controller.peerIsOnline) return 'çevrimiçi';
   if (controller.peerLastSeen != null) {

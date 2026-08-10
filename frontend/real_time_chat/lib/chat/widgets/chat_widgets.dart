@@ -94,62 +94,67 @@ class MessageBubble extends StatelessWidget {
     required this.message,
     required this.isMine,
     required this.showTail,
+    this.onRetry,
   });
   final ChatMessage message;
   final bool isMine;
   final bool showTail;
+  final VoidCallback? onRetry;
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final radius = Radius.circular(showTail ? 5 : 18);
-    return Align(
-      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * .78,
-        ),
-        margin: EdgeInsets.only(
-          left: 12,
-          right: 12,
-          top: 2,
-          bottom: showTail ? 8 : 1,
-        ),
-        padding: const EdgeInsets.fromLTRB(12, 8, 9, 6),
-        decoration: BoxDecoration(
-          color: isMine
-              ? colors.primaryContainer
-              : colors.surfaceContainerHighest,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18),
-            topRight: const Radius.circular(18),
-            bottomLeft: isMine ? const Radius.circular(18) : radius,
-            bottomRight: isMine ? radius : const Radius.circular(18),
+    return GestureDetector(
+      onTap: message.status == MessageStatus.failed ? onRetry : null,
+      child: Align(
+        alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.sizeOf(context).width * .78,
           ),
-        ),
-        child: Wrap(
-          alignment: WrapAlignment.end,
-          crossAxisAlignment: WrapCrossAlignment.end,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(right: 9, bottom: 2),
-              child: Text(
-                message.content,
-                style: const TextStyle(fontSize: 15.5, height: 1.3),
-              ),
+          margin: EdgeInsets.only(
+            left: 12,
+            right: 12,
+            top: 2,
+            bottom: showTail ? 8 : 1,
+          ),
+          padding: const EdgeInsets.fromLTRB(12, 8, 9, 6),
+          decoration: BoxDecoration(
+            color: isMine
+                ? colors.primaryContainer
+                : colors.surfaceContainerHighest,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(18),
+              topRight: const Radius.circular(18),
+              bottomLeft: isMine ? const Radius.circular(18) : radius,
+              bottomRight: isMine ? radius : const Radius.circular(18),
             ),
-            Text(
-              _time(message.createdAt),
-              style: Theme.of(
-                context,
-              ).textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant),
-            ),
-            if (isMine)
+          ),
+          child: Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.end,
+            children: [
               Padding(
-                padding: const EdgeInsets.only(left: 3),
-                child: MessageStatusIcon(status: message.status),
+                padding: const EdgeInsets.only(right: 9, bottom: 2),
+                child: Text(
+                  message.content,
+                  style: const TextStyle(fontSize: 15.5, height: 1.3),
+                ),
               ),
-          ],
+              Text(
+                _time(message.createdAt),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              if (isMine)
+                Padding(
+                  padding: const EdgeInsets.only(left: 3),
+                  child: MessageStatusIcon(status: message.status),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -237,7 +242,7 @@ class MessageInput extends StatefulWidget {
     required this.onSend,
     required this.onChanged,
   });
-  final ValueChanged<String> onSend;
+  final bool Function(String) onSend;
   final ValueChanged<String> onChanged;
   @override
   State<MessageInput> createState() => _MessageInputState();
@@ -254,7 +259,8 @@ class _MessageInputState extends State<MessageInput> {
 
   void send() {
     if (!hasText) return;
-    widget.onSend(controller.text);
+    final sent = widget.onSend(controller.text);
+    if (!sent) return;
     controller.clear();
     widget.onChanged('');
     setState(() => hasText = false);
