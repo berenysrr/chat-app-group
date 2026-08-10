@@ -1,148 +1,400 @@
-# API Contract - Authentication & User Management
+# REST API Contract
 
-All endpoints are prefixed with `/api/accounts/`.
+Base URL:
 
-## 1. Register User
-- **Endpoint:** `POST /api/accounts/register/`
-- **Authentication:** None (Public)
-- **Request Body:**
-  ```json
-  {
-    "username": "john_doe",
-    "email": "john@example.com",
-    "password": "strongpassword123"
-  }
-  ```
-- **Response (201 Created):**
-  ```json
-  {
-    "user": {
-      "id": 1,
-      "username": "john_doe",
-      "email": "john@example.com",
-      "avatar": null,
-      "is_online": false,
-      "last_seen": null,
-      "created_at": "2026-08-10T12:00:00Z",
-      "updated_at": "2026-08-10T12:00:00Z"
-    },
-    "refresh": "eyJhbGciOi...",
-    "access": "eyJhbGciOi..."
-  }
-  ```
+`http://localhost:8000/api/`
+
+Production URL daha sonra belirlenecektir.
 
 ---
 
-## 2. Login User (Obtain JWT Tokens)
-- **Endpoint:** `POST /api/accounts/login/`
-- **Authentication:** None (Public)
-- **Request Body:**
-  ```json
-  {
-    "username": "john_doe",
-    "password": "strongpassword123"
-  }
-  ```
-- **Response (200 OK):**
-  ```json
-  {
-    "refresh": "eyJhbGciOi...",
-    "access": "eyJhbGciOi..."
-  }
-  ```
+# Authentication
 
----
+## Register
 
-## 3. Refresh JWT Token
-- **Endpoint:** `POST /api/accounts/token/refresh/`
-- **Authentication:** None (Public)
-- **Request Body:**
-  ```json
-  {
-    "refresh": "eyJhbGciOi..."
-  }
-  ```
-- **Response (200 OK):**
-  ```json
-  {
-    "access": "eyJhbGciOi...",
-    "refresh": "eyJhbGciOi..." // If token rotation is enabled
-  }
-  ```
+`POST /auth/register/`
 
----
+Request:
 
-## 4. Logout User (Blacklist Token)
-- **Endpoint:** `POST /api/accounts/logout/`
-- **Authentication:** Required (Bearer Token)
-- **Request Body:**
-  ```json
-  {
-    "refresh": "eyJhbGciOi..."
-  }
-  ```
-- **Response (200 OK):**
-  ```json
-  {
-    "detail": "Successfully logged out."
-  }
-  ```
+```json
+{
+  "username": "user1",
+  "email": "user@example.com",
+  "password": "Password123"
+}
+```
 
----
+Response:
 
-## 5. Get Current User Profile
-- **Endpoint:** `GET /api/accounts/me/`
-- **Authentication:** Required (Bearer Token)
-- **Response (200 OK):**
-  ```json
-  {
+```json
+{
+  "message": "User registered successfully",
+  "access": "ACCESS_TOKEN",
+  "refresh": "REFRESH_TOKEN",
+  "user": {
     "id": 1,
-    "username": "john_doe",
-    "email": "john@example.com",
-    "avatar": "http://localhost:8000/media/avatars/john_doe.png",
-    "is_online": true,
-    "last_seen": "2026-08-10T12:05:00Z",
-    "created_at": "2026-08-10T12:00:00Z",
-    "updated_at": "2026-08-10T12:05:00Z"
+    "username": "user1",
+    "email": "user@example.com"
   }
-  ```
+}
+```
 
 ---
 
-## 6. Update Profile
-- **Endpoint:** `PATCH /api/accounts/update/` (or `PUT`)
-- **Authentication:** Required (Bearer Token)
-- **Request Body (Multipart Form-Data for avatar upload, or JSON):**
-  - `username` (optional)
-  - `email` (optional)
-  - `avatar` (optional, File/Image)
-- **Response (200 OK):**
-  ```json
-  {
-    "username": "john_updated",
-    "email": "john_new@example.com",
-    "avatar": "http://localhost:8000/media/avatars/new_john.png"
+# Login
+
+`POST /auth/login/`
+
+Request:
+
+```json
+{
+  "username": "user1",
+  "password": "Password123"
+}
+```
+
+Response:
+
+```json
+{
+  "access": "ACCESS_TOKEN",
+  "refresh": "REFRESH_TOKEN",
+  "user": {
+    "id": 1,
+    "username": "user1",
+    "email": "user@example.com",
+    "avatar": null
   }
-  ```
+}
+```
 
 ---
 
-## 7. Search Users
-- **Endpoint:** `GET /api/accounts/search/?q=<query_string>`
-- **Authentication:** Required (Bearer Token)
-- **Response (200 OK):**
-  ```json
-  [
+# Refresh Token
+
+`POST /auth/refresh/`
+
+Request:
+
+```json
+{
+  "refresh": "REFRESH_TOKEN"
+}
+```
+
+Response:
+
+```json
+{
+  "access": "NEW_ACCESS_TOKEN"
+}
+```
+
+---
+
+# Logout
+
+`POST /auth/logout/`
+
+Authorization:
+
+`Bearer ACCESS_TOKEN`
+
+Request:
+
+```json
+{
+  "refresh": "REFRESH_TOKEN"
+}
+```
+
+Response:
+
+```json
+{
+  "message": "Logout successful"
+}
+```
+
+---
+
+# Current User
+
+`GET /users/me/`
+
+Authorization:
+
+`Bearer ACCESS_TOKEN`
+
+Response:
+
+```json
+{
+  "id": 1,
+  "username": "user1",
+  "email": "user@example.com",
+  "avatar": null,
+  "is_online": true,
+  "last_seen": "2026-08-10T10:30:00Z"
+}
+```
+
+---
+
+# Update User
+
+`PATCH /users/me/`
+
+Authorization:
+
+`Bearer ACCESS_TOKEN`
+
+Request (Multipart form-data or JSON):
+
+```json
+{
+  "username": "new_username",
+  "avatar": "avatar_url"
+}
+```
+
+---
+
+# Search Users
+
+`GET /users/?search=user`
+
+Authorization:
+
+`Bearer ACCESS_TOKEN`
+
+Response:
+
+```json
+{
+  "results": [
     {
       "id": 2,
-      "username": "jane_doe",
-      "email": "jane@example.com",
+      "username": "user2",
       "avatar": null,
-      "is_online": false,
-      "last_seen": "2026-08-10T11:00:00Z",
-      "created_at": "2026-08-10T10:00:00Z",
+      "is_online": true
+    }
+  ]
+}
+```
+
+---
+
+# Conversations
+
+## List
+
+`GET /conversations/`
+
+Authorization:
+
+`Bearer ACCESS_TOKEN`
+
+Response:
+
+```json
+{
+  "results": [
+    {
+      "id": 1,
+      "type": "private",
+      "name": null,
+      "created_by": 1,
+      "members": [],
+      "last_message": null,
       "updated_at": "2026-08-10T10:30:00Z"
     }
   ]
-  ```
-  *(Returns an empty list `[]` if query parameter `q` is empty or no match is found. Excludes the current authenticated user from results.)*
+}
+```
+
+---
+
+# Create Conversation
+
+`POST /conversations/`
+
+Authorization:
+
+`Bearer ACCESS_TOKEN`
+
+Private conversation request:
+
+```json
+{
+  "type": "private",
+  "member_ids": [2]
+}
+```
+
+Group conversation request:
+
+```json
+{
+  "type": "group",
+  "name": "Project Team",
+  "member_ids": [2, 3, 4]
+}
+```
+
+Kurallar:
+
+* Conversation oluşturan kullanıcı otomatik member ve admin olur.
+* Group conversation maksimum 5 kullanıcı içerebilir.
+* Private conversation yalnızca iki kullanıcı içerebilir.
+
+---
+
+# Conversation Detail
+
+`GET /conversations/{id}/`
+
+Authorization:
+
+`Bearer ACCESS_TOKEN`
+
+---
+
+# Update Conversation
+
+`PATCH /conversations/{id}/`
+
+Authorization:
+
+`Bearer ACCESS_TOKEN`
+
+Sadece group admin kullanabilir.
+
+Örneğin:
+
+```json
+{
+  "name": "New Group Name"
+}
+```
+
+---
+
+# Delete Conversation
+
+`DELETE /conversations/{id}/`
+
+Authorization:
+
+`Bearer ACCESS_TOKEN`
+
+Sadece group admin kullanabilir.
+
+---
+
+# Conversation Members
+
+`GET /conversations/{id}/members/`
+
+Authorization:
+
+`Bearer ACCESS_TOKEN`
+
+---
+
+# Add Member
+
+`POST /conversations/{id}/members/`
+
+Authorization:
+
+`Bearer ACCESS_TOKEN`
+
+Request:
+
+```json
+{
+  "user_id": 5
+}
+```
+
+Sadece group admin kullanabilir.
+
+---
+
+# Remove Member
+
+`DELETE /conversations/{id}/members/{user_id}/`
+
+Authorization:
+
+`Bearer ACCESS_TOKEN`
+
+Sadece group admin kullanabilir.
+
+---
+
+# Message History
+
+`GET /conversations/{id}/messages/`
+
+Authorization:
+
+`Bearer ACCESS_TOKEN`
+
+Query parameters:
+
+`?page=1&page_size=30`
+
+Mesajlar newest veya oldest sıralaması proje boyunca tek bir standartta kullanılmalıdır.
+
+Önerilen:
+
+created_at descending.
+
+---
+
+# Chat Screens
+
+Chat List ve Chat Detail ekranları için kullanılacak endpointler:
+
+```http
+GET /api/chats/
+GET /api/chats/{conversation_id}/
+GET /api/chats/{conversation_id}/messages/
+POST /api/chats/
+```
+
+Bu endpointlerin kesin davranışı chat backend implementasyonu sırasında netleştirilecektir.
+Şimdilik frontend ekranlarının ihtiyaç duyduğu ana adresler contract'a eklenmiştir.
+
+---
+
+# Authentication Header
+
+Authenticated REST requests:
+
+`Authorization: Bearer ACCESS_TOKEN`
+
+---
+
+# HTTP Status Codes
+
+200 → Success
+
+201 → Created
+
+204 → Deleted successfully
+
+400 → Bad Request
+
+401 → Unauthorized
+
+403 → Forbidden
+
+404 → Not Found
+
+409 → Conflict
+
+500 → Internal Server Error

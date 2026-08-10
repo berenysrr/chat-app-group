@@ -1,4 +1,3 @@
-from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
@@ -8,12 +7,12 @@ User = get_user_model()
 class AccountsAPITests(APITestCase):
 
     def setUp(self):
-        self.register_url = reverse('register')
-        self.login_url = reverse('token_obtain_pair')
-        self.me_url = reverse('current_user')
-        self.update_url = reverse('user_update')
-        self.search_url = reverse('user_search')
-        self.logout_url = reverse('logout')
+        self.register_url = '/api/auth/register/'
+        self.login_url = '/api/auth/login/'
+        self.refresh_url = '/api/auth/refresh/'
+        self.logout_url = '/api/auth/logout/'
+        self.me_url = '/api/users/me/'
+        self.search_url = '/api/users/'
 
         self.user_data = {
             'username': 'testuser',
@@ -29,6 +28,7 @@ class AccountsAPITests(APITestCase):
     def test_user_registration(self):
         response = self.client.post(self.register_url, self.user_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['message'], 'User registered successfully')
         self.assertIn('access', response.data)
         self.assertIn('refresh', response.data)
         self.assertEqual(response.data['user']['username'], 'testuser')
@@ -51,6 +51,8 @@ class AccountsAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('access', response.data)
         self.assertIn('refresh', response.data)
+        self.assertEqual(response.data['user']['username'], 'existinguser')
+        self.assertEqual(response.data['user']['email'], 'existing@example.com')
 
     def test_get_current_user_unauthenticated(self):
         response = self.client.get(self.me_url)
@@ -69,7 +71,7 @@ class AccountsAPITests(APITestCase):
             'username': 'updatedusername',
             'email': 'updated@example.com'
         }
-        response = self.client.patch(self.update_url, update_data)
+        response = self.client.patch(self.me_url, update_data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['username'], 'updatedusername')
         self.assertEqual(response.data['email'], 'updated@example.com')
@@ -84,10 +86,10 @@ class AccountsAPITests(APITestCase):
             password='password123'
         )
 
-        response = self.client.get(f"{self.search_url}?q=search")
+        response = self.client.get(f"{self.search_url}?search=search")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['username'], 'searchtarget')
+        self.assertEqual(len(response.data['results']), 1)
+        self.assertEqual(response.data['results'][0]['username'], 'searchtarget')
 
     def test_logout_blacklist(self):
         # Obtain tokens
@@ -102,4 +104,4 @@ class AccountsAPITests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access_token}')
         logout_response = self.client.post(self.logout_url, {'refresh': refresh_token})
         self.assertEqual(logout_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(logout_response.data['detail'], 'Successfully logged out.')
+        self.assertEqual(logout_response.data['message'], 'Logout successful')
