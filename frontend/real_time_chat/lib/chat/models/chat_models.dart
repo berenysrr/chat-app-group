@@ -145,10 +145,14 @@ class ChatPreview {
     required this.lastMessage,
     required this.updatedAt,
     this.unreadCount = 0,
+    this.lastMessageIsMine = false,
+    this.lastMessageStatus = MessageStatus.delivered,
   });
   final int conversationId;
   final ChatUser user;
   final String lastMessage;
   final DateTime updatedAt;
   final int unreadCount;
+  final bool lastMessageIsMine;
+  final MessageStatus lastMessageStatus;
 }

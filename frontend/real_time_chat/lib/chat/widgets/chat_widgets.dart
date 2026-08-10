@@ -43,6 +43,7 @@ class UserAvatar extends StatelessWidget {
             right: 0,
             bottom: 1,
             child: Container(
+              key: ValueKey('online-${user.id}'),
               width: 13,
               height: 13,
               decoration: BoxDecoration(
@@ -146,7 +147,7 @@ class MessageBubble extends StatelessWidget {
             if (isMine)
               Padding(
                 padding: const EdgeInsets.only(left: 3),
-                child: _StatusIcon(status: message.status),
+                child: MessageStatusIcon(status: message.status),
               ),
           ],
         ),
@@ -155,8 +156,8 @@ class MessageBubble extends StatelessWidget {
   }
 }
 
-class _StatusIcon extends StatelessWidget {
-  const _StatusIcon({required this.status});
+class MessageStatusIcon extends StatelessWidget {
+  const MessageStatusIcon({super.key, required this.status});
   final MessageStatus status;
   @override
   Widget build(BuildContext context) {

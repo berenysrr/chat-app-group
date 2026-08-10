@@ -12,11 +12,15 @@ class ChatController extends ChangeNotifier {
     required this.currentUser,
     required this.peer,
     required this.conversationId,
+    this.initialMessages,
+    this.initialUnreadCount = 0,
   });
   final WebSocketService socket;
   final ChatUser currentUser;
   final ChatUser peer;
   final int conversationId;
+  final List<ChatMessage>? initialMessages;
+  final int initialUnreadCount;
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   final List<ChatMessage> _messages = [];
   Timer? _typingDebounce;
@@ -31,28 +35,29 @@ class ChatController extends ChangeNotifier {
   List<ChatMessage> get messages => List.unmodifiable(_messages);
 
   Future<void> initialize() async {
-    _messages.addAll([
-      ChatMessage(
-        id: 1,
-        clientMessageId: 'seed-1',
-        conversationId: conversationId,
-        sender: peer,
-        content: 'Selam! Bugünkü sunum hazır mı?',
-        createdAt: DateTime.now().subtract(const Duration(minutes: 18)),
-      ),
-      ChatMessage(
-        id: 2,
-        clientMessageId: 'seed-2',
-        conversationId: conversationId,
-        sender: currentUser,
-        content: 'Neredeyse bitti, son dokunuşları yapıyorum.',
-        createdAt: DateTime.now().subtract(const Duration(minutes: 16)),
-        status: MessageStatus.read,
-      ),
-    ]);
-    unreadCount = _messages
-        .where((message) => !message.isMine(currentUser.id))
-        .length;
+    _messages.addAll(
+      initialMessages ??
+          [
+            ChatMessage(
+              id: 1,
+              clientMessageId: 'seed-1',
+              conversationId: conversationId,
+              sender: peer,
+              content: 'Selam! Bugünkü sunum hazır mı?',
+              createdAt: DateTime.now().subtract(const Duration(minutes: 18)),
+            ),
+            ChatMessage(
+              id: 2,
+              clientMessageId: 'seed-2',
+              conversationId: conversationId,
+              sender: currentUser,
+              content: 'Neredeyse bitti, son dokunuşları yapıyorum.',
+              createdAt: DateTime.now().subtract(const Duration(minutes: 16)),
+              status: MessageStatus.read,
+            ),
+          ],
+    );
+    unreadCount = initialUnreadCount;
     _subscriptions.addAll([
       socket.connectionState.listen((value) {
         connection = value;

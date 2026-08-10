@@ -4,9 +4,16 @@ import '../models/chat_models.dart';
 import 'web_socket_service.dart';
 
 class MockWebSocketService implements WebSocketService {
-  MockWebSocketService({this.conversationId = 3, this.currentUserId = 1});
+  MockWebSocketService({
+    this.conversationId = 3,
+    this.currentUserId = 1,
+    this.peerId = 2,
+    this.peerUsername = 'Ece',
+  });
   final int conversationId;
   final int currentUserId;
+  final int peerId;
+  final String peerUsername;
   var _nextId = 100;
   Timer? _typingTimer;
   final _states = StreamController<SocketConnectionState>.broadcast();
@@ -40,9 +47,7 @@ class MockWebSocketService implements WebSocketService {
     _states.add(SocketConnectionState.connecting);
     await Future<void>.delayed(const Duration(milliseconds: 250));
     _states.add(SocketConnectionState.connected);
-    _online.add(
-      const PresenceEvent(userId: 2, username: 'Ece', isOnline: true),
-    );
+    setPeerOnline(true);
   }
 
   @override
@@ -67,19 +72,21 @@ class MockWebSocketService implements WebSocketService {
     Timer(
       const Duration(milliseconds: 900),
       () => _reads.add(
-        ReadEvent(messageId: id, userId: 2, readAt: DateTime.now()),
+        ReadEvent(messageId: id, userId: peerId, readAt: DateTime.now()),
       ),
     );
-    _typing.add(const TypingEvent(userId: 2, username: 'Ece', isTyping: true));
+    _typing.add(
+      TypingEvent(userId: peerId, username: peerUsername, isTyping: true),
+    );
     _typingTimer?.cancel();
     _typingTimer = Timer(const Duration(seconds: 2), () {
-      _typing.add(const TypingEvent(userId: 2, isTyping: false));
+      _typing.add(TypingEvent(userId: peerId, isTyping: false));
       _messages.add(
         ChatMessage(
           id: _nextId++,
           clientMessageId: 'mock-$id',
           conversationId: conversationId,
-          sender: const ChatUser(id: 2, username: 'Ece'),
+          sender: ChatUser(id: peerId, username: peerUsername),
           content: _replyFor(content),
           createdAt: DateTime.now(),
         ),
@@ -90,6 +97,17 @@ class MockWebSocketService implements WebSocketService {
   String _replyFor(String content) => content.endsWith('?')
       ? 'Evet, kulağa harika geliyor ✨'
       : 'Mesajını aldım, teşekkürler!';
+
+  void setPeerOnline(bool online) {
+    final event = PresenceEvent(
+      userId: peerId,
+      username: peerUsername,
+      isOnline: online,
+      lastSeen: online ? null : DateTime.now(),
+    );
+    (online ? _online : _offline).add(event);
+  }
+
   @override
   void sendTypingStart() {}
   @override
