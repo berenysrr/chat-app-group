@@ -37,7 +37,9 @@ class LastMessageModel {
     return LastMessageModel(
       id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
       content: json['content'] ?? '',
-      sender: json['sender'] != null ? UserModel.fromJson(json['sender']) : null,
+      sender: json['sender'] != null
+          ? UserModel.fromJson(json['sender'])
+          : null,
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'])
           : null,
@@ -76,8 +78,8 @@ class ConversationModel {
           : null,
       members: json['members'] != null
           ? (json['members'] as List)
-              .map((member) => ConversationMemberModel.fromJson(member))
-              .toList()
+                .map((member) => ConversationMemberModel.fromJson(member))
+                .toList()
           : [],
       lastMessage: json['last_message'] != null
           ? LastMessageModel.fromJson(json['last_message'])

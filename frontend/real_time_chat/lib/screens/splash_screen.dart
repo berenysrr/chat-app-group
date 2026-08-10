@@ -70,9 +70,7 @@ class _SplashScreenState extends State<SplashScreen>
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: AppTheme.backgroundGradient,
-        ),
+        decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
         child: Stack(
           children: [
             // Animated background blobs
@@ -102,7 +100,9 @@ class _SplashScreenState extends State<SplashScreen>
                                 spreadRadius: 10,
                               ),
                               BoxShadow(
-                                color: AppTheme.primaryLight.withValues(alpha: 0.3),
+                                color: AppTheme.primaryLight.withValues(
+                                  alpha: 0.3,
+                                ),
                                 blurRadius: 80,
                                 spreadRadius: 20,
                               ),
@@ -178,10 +178,7 @@ class _SplashScreenState extends State<SplashScreen>
       Positioned(
         top: MediaQuery.of(context).size.height * 0.4,
         right: -40,
-        child: _Blob(
-          size: 160,
-          color: AppTheme.accent.withValues(alpha: 0.15),
-        ),
+        child: _Blob(size: 160, color: AppTheme.accent.withValues(alpha: 0.15)),
       ),
     ];
   }

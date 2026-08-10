@@ -45,7 +45,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   Future<void> _initChat() async {
-    _currentUser = widget.currentLoggedInUser ?? await _authService.getProfile();
+    _currentUser =
+        widget.currentLoggedInUser ?? await _authService.getProfile();
     await _loadHistory();
     await _connectWs();
   }
@@ -175,7 +176,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final border = AppTheme.cardBorder(context);
     final textPrimary = AppTheme.textPrimary(context);
     final textSecondary = AppTheme.textSecondary(context);
-    final iconColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final iconColor = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF64748B);
 
     return Scaffold(
       backgroundColor: chatBg,
@@ -230,8 +233,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         _typingUsername != null
                             ? '$_typingUsername is typing...'
                             : (widget.conversation.type == 'group'
-                                ? '${widget.conversation.members.length} members'
-                                : '● Online'),
+                                  ? '${widget.conversation.members.length} members'
+                                  : '● Online'),
                         style: TextStyle(
                           fontSize: 11.5,
                           color: _typingUsername != null
@@ -257,35 +260,39 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               child: _isLoading
                   ? const Center(
                       child: CircularProgressIndicator(
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(AppTheme.primary),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppTheme.primary,
+                        ),
                         strokeWidth: 2.5,
                       ),
                     )
                   : _messages.isEmpty
-                      ? Center(
-                          child: Text(
-                            'No messages in this thread yet.\nType below to start chatting.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: textSecondary,
-                              fontSize: 14,
-                              height: 1.5,
-                            ),
-                          ),
-                        )
-                      : ListView.builder(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 16),
-                          itemCount: _messages.length,
-                          itemBuilder: (context, index) {
-                            final msg = _messages[index];
-                            final isMe = _currentUser != null &&
-                                msg.sender.id == _currentUser!.id;
-                            return _buildTechBubble(context, msg, isMe);
-                          },
+                  ? Center(
+                      child: Text(
+                        'No messages in this thread yet.\nType below to start chatting.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: textSecondary,
+                          fontSize: 14,
+                          height: 1.5,
                         ),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
+                      ),
+                      itemCount: _messages.length,
+                      itemBuilder: (context, index) {
+                        final msg = _messages[index];
+                        final isMe =
+                            _currentUser != null &&
+                            msg.sender.id == _currentUser!.id;
+                        return _buildTechBubble(context, msg, isMe);
+                      },
+                    ),
             ),
 
             // Input Bar
@@ -400,8 +407,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ],
         ),
         child: Column(
-          crossAxisAlignment:
-              isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: isMe
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(

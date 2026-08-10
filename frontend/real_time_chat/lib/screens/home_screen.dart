@@ -23,8 +23,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _toggleTheme() {
     final current = AppTheme.themeModeNotifier.value;
-    AppTheme.themeModeNotifier.value =
-        current == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    AppTheme.themeModeNotifier.value = current == ThemeMode.dark
+        ? ThemeMode.light
+        : ThemeMode.dark;
   }
 
   void _selectConversation(ConversationModel conversation) {
@@ -73,15 +74,14 @@ class _HomeScreenState extends State<HomeScreen> {
           backgroundColor: AppTheme.surface(context),
           title: const Text(
             'Messages',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 22,
-            ),
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 22),
           ),
           actions: [
             IconButton(
               icon: Icon(
-                _currentIndex == 1 ? Icons.chat_bubble_rounded : Icons.search_rounded,
+                _currentIndex == 1
+                    ? Icons.chat_bubble_rounded
+                    : Icons.search_rounded,
               ),
               onPressed: () => _onTabSelected(_currentIndex == 1 ? 0 : 1),
             ),
@@ -109,7 +109,9 @@ class _HomeScreenState extends State<HomeScreen> {
           currentIndex: _currentIndex,
           onTap: _onTabSelected,
           selectedItemColor: AppTheme.primary,
-          unselectedItemColor: isDark ? AppTheme.offlineGrey : const Color(0xFF64748B),
+          unselectedItemColor: isDark
+              ? AppTheme.offlineGrey
+              : const Color(0xFF64748B),
           backgroundColor: AppTheme.surface(context),
           items: const [
             BottomNavigationBarItem(
@@ -217,10 +219,7 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 18),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(
-            color: border.withValues(alpha: 0.6),
-            width: 1,
-          ),
+          bottom: BorderSide(color: border.withValues(alpha: 0.6), width: 1),
         ),
       ),
       child: Row(
@@ -403,8 +402,10 @@ class _HomeScreenState extends State<HomeScreen> {
               GestureDetector(
                 onTap: () => _onTabSelected(1),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 13,
+                  ),
                   decoration: BoxDecoration(
                     gradient: AppTheme.primaryGradient,
                     borderRadius: BorderRadius.circular(14),
@@ -419,7 +420,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.person_add_rounded, color: Colors.white, size: 18),
+                      Icon(
+                        Icons.person_add_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                       SizedBox(width: 8),
                       Text(
                         'Start a New Conversation',

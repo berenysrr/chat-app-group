@@ -58,7 +58,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      _showSnackBar(e.toString().replaceAll('Exception: ', ''), Colors.redAccent);
+      _showSnackBar(
+        e.toString().replaceAll('Exception: ', ''),
+        Colors.redAccent,
+      );
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -73,8 +76,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final textSecondary = AppTheme.textSecondary(dialogContext);
         return AlertDialog(
           backgroundColor: surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('Log out of RealTime?', style: TextStyle(color: textPrimary)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            'Log out of RealTime?',
+            style: TextStyle(color: textPrimary),
+          ),
           content: Text(
             'Are you sure you want to log out?',
             style: TextStyle(color: textSecondary),
@@ -204,9 +212,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: leftBg,
-              border: Border(
-                bottom: BorderSide(color: border, width: 1),
-              ),
+              border: Border(bottom: BorderSide(color: border, width: 1)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -238,9 +244,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: leftBg,
-              border: Border(
-                bottom: BorderSide(color: border, width: 1),
-              ),
+              border: Border(bottom: BorderSide(color: border, width: 1)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,8 +293,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: Colors.white,
                     ),
                   )
-                : const Text('Save Profile',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                : const Text(
+                    'Save Profile',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
           ),
           const SizedBox(height: 16),
 
@@ -306,8 +312,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             onPressed: _handleLogout,
             icon: const Icon(Icons.logout_rounded, size: 20),
-            label: const Text('Log Out',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            label: const Text(
+              'Log Out',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),

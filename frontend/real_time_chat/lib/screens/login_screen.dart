@@ -30,9 +30,10 @@ class _LoginScreenState extends State<LoginScreen>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     );
-    _fadeAnim = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _animController, curve: Curves.easeOut),
-    );
+    _fadeAnim = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
     _slideAnim = Tween<Offset>(
       begin: const Offset(0, 0.06),
       end: Offset.zero,
@@ -81,9 +82,13 @@ class _LoginScreenState extends State<LoginScreen>
     final size = MediaQuery.of(context).size;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF12151E) : Colors.white;
-    final cardBorder = isDark ? const Color(0xFF262C40) : const Color(0xFFE2E8F0);
+    final cardBorder = isDark
+        ? const Color(0xFF262C40)
+        : const Color(0xFFE2E8F0);
     final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
-    final textSecondary = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final textSecondary = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF64748B);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -150,8 +155,9 @@ class _LoginScreenState extends State<LoginScreen>
                                 borderRadius: BorderRadius.circular(22),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: AppTheme.primary
-                                        .withValues(alpha: 0.45),
+                                    color: AppTheme.primary.withValues(
+                                      alpha: 0.45,
+                                    ),
                                     blurRadius: 30,
                                     offset: const Offset(0, 8),
                                   ),
@@ -195,7 +201,9 @@ class _LoginScreenState extends State<LoginScreen>
                                 border: Border.all(color: cardBorder),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+                                    color: Colors.black.withValues(
+                                      alpha: isDark ? 0.3 : 0.06,
+                                    ),
                                     blurRadius: 30,
                                     offset: const Offset(0, 12),
                                   ),
@@ -218,8 +226,8 @@ class _LoginScreenState extends State<LoginScreen>
                                       action: TextInputAction.next,
                                       validator: (v) =>
                                           v == null || v.trim().isEmpty
-                                              ? 'Enter your username'
-                                              : null,
+                                          ? 'Enter your username'
+                                          : null,
                                     ),
                                     const SizedBox(height: 14),
                                     DarkField(
@@ -233,10 +241,9 @@ class _LoginScreenState extends State<LoginScreen>
                                             !_obscurePassword,
                                       ),
                                       onSubmitted: (_) => _handleLogin(),
-                                      validator: (v) =>
-                                          v == null || v.isEmpty
-                                              ? 'Enter your password'
-                                              : null,
+                                      validator: (v) => v == null || v.isEmpty
+                                          ? 'Enter your password'
+                                          : null,
                                     ),
                                     const SizedBox(height: 24),
                                     GradientButton(
@@ -260,8 +267,8 @@ class _LoginScreenState extends State<LoginScreen>
                                   ),
                                 ),
                                 GestureDetector(
-                                  onTap: () => Navigator.pushNamed(
-                                      context, '/register'),
+                                  onTap: () =>
+                                      Navigator.pushNamed(context, '/register'),
                                   child: const Text(
                                     'Create one',
                                     style: TextStyle(

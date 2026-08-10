@@ -21,7 +21,7 @@ class IsConversationMember(permissions.BasePermission):
 
         # İstek atan kullanıcı bu odanın üyesi mi?
         return ConversationMember.objects.filter(
-            conversation=conversation, 
+            conversation=conversation,
             user=request.user
         ).exists()
 
@@ -41,7 +41,7 @@ class IsConversationAdmin(permissions.BasePermission):
             return False
 
         return ConversationMember.objects.filter(
-            conversation=conversation, 
+            conversation=conversation,
             user=request.user,
             role='admin'
         ).exists()

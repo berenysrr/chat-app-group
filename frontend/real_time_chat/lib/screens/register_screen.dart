@@ -33,9 +33,10 @@ class _RegisterScreenState extends State<RegisterScreen>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     );
-    _fadeAnim = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _animController, curve: Curves.easeOut),
-    );
+    _fadeAnim = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
     _slideAnim = Tween<Offset>(
       begin: const Offset(0, 0.06),
       end: Offset.zero,
@@ -77,8 +78,7 @@ class _RegisterScreenState extends State<RegisterScreen>
     } catch (error) {
       if (mounted) {
         setState(
-          () =>
-              _errorMessage = error.toString().replaceAll('Exception: ', ''),
+          () => _errorMessage = error.toString().replaceAll('Exception: ', ''),
         );
       }
     } finally {
@@ -91,9 +91,13 @@ class _RegisterScreenState extends State<RegisterScreen>
     final size = MediaQuery.of(context).size;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF12151E) : Colors.white;
-    final cardBorder = isDark ? const Color(0xFF262C40) : const Color(0xFFE2E8F0);
+    final cardBorder = isDark
+        ? const Color(0xFF262C40)
+        : const Color(0xFFE2E8F0);
     final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
-    final textSecondary = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final textSecondary = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF64748B);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -145,8 +149,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
                           maxWidth: 440,
-                          minWidth:
-                              size.width < 440 ? size.width - 48 : 440,
+                          minWidth: size.width < 440 ? size.width - 48 : 440,
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -184,7 +187,9 @@ class _RegisterScreenState extends State<RegisterScreen>
                                 borderRadius: BorderRadius.circular(22),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: AppTheme.secondary.withValues(alpha: 0.45),
+                                    color: AppTheme.secondary.withValues(
+                                      alpha: 0.45,
+                                    ),
                                     blurRadius: 30,
                                     offset: const Offset(0, 8),
                                   ),
@@ -228,7 +233,9 @@ class _RegisterScreenState extends State<RegisterScreen>
                                 border: Border.all(color: cardBorder),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+                                    color: Colors.black.withValues(
+                                      alpha: isDark ? 0.3 : 0.06,
+                                    ),
                                     blurRadius: 30,
                                     offset: const Offset(0, 12),
                                   ),
@@ -251,8 +258,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                                       action: TextInputAction.next,
                                       validator: (v) =>
                                           v == null || v.trim().isEmpty
-                                              ? 'Choose a username'
-                                              : null,
+                                          ? 'Choose a username'
+                                          : null,
                                     ),
                                     const SizedBox(height: 14),
                                     DarkField(
@@ -260,12 +267,11 @@ class _RegisterScreenState extends State<RegisterScreen>
                                       label: 'Email address',
                                       icon: Icons.email_outlined,
                                       action: TextInputAction.next,
-                                      keyboardType:
-                                          TextInputType.emailAddress,
+                                      keyboardType: TextInputType.emailAddress,
                                       validator: (v) =>
                                           v == null || !v.contains('@')
-                                              ? 'Enter a valid email'
-                                              : null,
+                                          ? 'Enter a valid email'
+                                          : null,
                                     ),
                                     const SizedBox(height: 14),
                                     DarkField(
@@ -280,8 +286,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                                       ),
                                       validator: (v) =>
                                           v == null || v.length < 6
-                                              ? 'Use at least 6 characters'
-                                              : null,
+                                          ? 'Use at least 6 characters'
+                                          : null,
                                     ),
                                     const SizedBox(height: 14),
                                     DarkField(

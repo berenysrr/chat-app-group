@@ -8,8 +8,8 @@ from django.contrib.auth import get_user_model
 
 from .models import Conversation, ConversationMember, Message
 from .serializers import (
-    ConversationSerializer, 
-    ConversationMemberSerializer, 
+    ConversationSerializer,
+    ConversationMemberSerializer,
     MessageSerializer
 )
 from .permissions import IsConversationMember, IsConversationAdmin
@@ -137,7 +137,7 @@ class ConversationMembersView(APIView):
             return Response({"detail": "Üye bulunamadı."}, status=status.HTTP_404_NOT_FOUND)
 
         request_member = ConversationMember.objects.filter(conversation=conversation, user=request.user).first()
-        
+
         # Kullanıcı kendisini gruptan çıkarabilir (Ayrılma) VEYA Admin bir başkasını çıkarabilir
         if request.user.id != int(user_id) and request_member.role != 'admin':
             return Response({"detail": "Başka bir üyeyi çıkarmak için admin olmalısınız."}, status=status.HTTP_403_FORBIDDEN)

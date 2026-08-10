@@ -65,7 +65,8 @@ class _ConversationListTabState extends State<ConversationListTab> {
     } else {
       final q = query.toLowerCase().trim();
       _filteredConversations = temp.where((c) {
-        final title = c.name ??
+        final title =
+            c.name ??
             (c.members.isNotEmpty ? c.members.first.user.username : '');
         final lastMsg = c.lastMessage?.content ?? '';
         return title.toLowerCase().contains(q) ||
@@ -135,10 +136,7 @@ class _ConversationListTabState extends State<ConversationListTab> {
               style: TextStyle(color: textPrimary, fontSize: 13.5),
               decoration: InputDecoration(
                 hintText: 'Search threads or users...',
-                hintStyle: TextStyle(
-                  color: textSecondary,
-                  fontSize: 13.5,
-                ),
+                hintStyle: TextStyle(color: textSecondary, fontSize: 13.5),
                 prefixIcon: Icon(
                   Icons.search_rounded,
                   color: textSecondary,
@@ -146,8 +144,11 @@ class _ConversationListTabState extends State<ConversationListTab> {
                 ),
                 suffixIcon: _filterController.text.isNotEmpty
                     ? IconButton(
-                        icon: Icon(Icons.close_rounded,
-                            size: 16, color: textSecondary),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          size: 16,
+                          color: textSecondary,
+                        ),
                         onPressed: () {
                           _filterController.clear();
                           setState(() => _filterConversations(''));
@@ -179,7 +180,11 @@ class _ConversationListTabState extends State<ConversationListTab> {
               const Spacer(),
               IconButton(
                 tooltip: 'New Group',
-                icon: const Icon(Icons.group_add_rounded, size: 18, color: AppTheme.primary),
+                icon: const Icon(
+                  Icons.group_add_rounded,
+                  size: 18,
+                  color: AppTheme.primary,
+                ),
                 onPressed: _openGroupDialog,
               ),
             ],
@@ -239,7 +244,9 @@ class _ConversationListTabState extends State<ConversationListTab> {
           color: chipBg,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? AppTheme.primary.withValues(alpha: 0.4) : border,
+            color: isSelected
+                ? AppTheme.primary.withValues(alpha: 0.4)
+                : border,
           ),
         ),
         child: Text(
@@ -264,11 +271,7 @@ class _ConversationListTabState extends State<ConversationListTab> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.forum_outlined,
-              size: 44,
-              color: AppTheme.primary,
-            ),
+            const Icon(Icons.forum_outlined, size: 44, color: AppTheme.primary),
             const SizedBox(height: 14),
             Text(
               'No active threads',
@@ -282,10 +285,7 @@ class _ConversationListTabState extends State<ConversationListTab> {
             Text(
               'Start a conversation by finding users in Discover.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: textSecondary,
-                fontSize: 13,
-              ),
+              style: TextStyle(color: textSecondary, fontSize: 13),
             ),
             const SizedBox(height: 18),
             ElevatedButton.icon(
@@ -327,7 +327,8 @@ class _SleekConversationTile extends StatelessWidget {
     final textSecondary = AppTheme.textSecondary(context);
 
     final isGroup = conversation.type == 'group';
-    final title = conversation.name ??
+    final title =
+        conversation.name ??
         (conversation.members.isNotEmpty
             ? conversation.members.first.user.username
             : 'Chat #${conversation.id}');
@@ -415,10 +416,7 @@ class _SleekConversationTile extends StatelessWidget {
                       ),
                       Text(
                         timeStr,
-                        style: TextStyle(
-                          color: textSecondary,
-                          fontSize: 11,
-                        ),
+                        style: TextStyle(color: textSecondary, fontSize: 11),
                       ),
                     ],
                   ),
@@ -427,10 +425,7 @@ class _SleekConversationTile extends StatelessWidget {
                     lastMsg,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: textSecondary,
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: textSecondary, fontSize: 13),
                   ),
                 ],
               ),

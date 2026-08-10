@@ -26,9 +26,15 @@ class UserModel {
       email: json['email'] ?? '',
       avatar: json['avatar'],
       isOnline: json['is_online'] ?? false,
-      lastSeen: json['last_seen'] != null ? DateTime.tryParse(json['last_seen']) : null,
-      createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at']) : null,
-      updatedAt: json['updated_at'] != null ? DateTime.tryParse(json['updated_at']) : null,
+      lastSeen: json['last_seen'] != null
+          ? DateTime.tryParse(json['last_seen'])
+          : null,
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'])
+          : null,
+      updatedAt: json['updated_at'] != null
+          ? DateTime.tryParse(json['updated_at'])
+          : null,
     );
   }
 

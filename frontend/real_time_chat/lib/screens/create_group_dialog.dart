@@ -53,7 +53,9 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
         if (_selectedUsers.length >= 4) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Group limit is 5 members maximum (including you)'),
+              content: const Text(
+                'Group limit is 5 members maximum (including you)',
+              ),
               backgroundColor: Colors.amber[800],
               behavior: SnackBarBehavior.floating,
             ),
@@ -152,7 +154,9 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : AppTheme.lightTextPrimary,
+                        color: isDark
+                            ? Colors.white
+                            : AppTheme.lightTextPrimary,
                       ),
                     ),
                   ],
@@ -186,7 +190,10 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
                       backgroundColor: AppTheme.primary,
                       child: Text(
                         u.username[0].toUpperCase(),
-                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                     label: Text(u.username),
@@ -205,7 +212,10 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
               decoration: InputDecoration(
                 hintText: 'Search members to add...',
                 prefixIcon: const Icon(Icons.search_rounded),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -218,37 +228,38 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
               child: _isSearching
                   ? const Center(child: CircularProgressIndicator())
                   : _searchResults.isEmpty
-                      ? Center(
-                          child: Text(
-                            _searchController.text.isEmpty
-                                ? 'Type a username to search'
-                                : 'No users found',
-                            style: TextStyle(
-                              color: isDark
-                                  ? AppTheme.darkTextSecondary
-                                  : AppTheme.lightTextSecondary,
-                              fontSize: 13,
-                            ),
-                          ),
-                        )
-                      : ListView.builder(
-                          itemCount: _searchResults.length,
-                          itemBuilder: (context, index) {
-                            final user = _searchResults[index];
-                            final isSelected =
-                                _selectedUsers.any((u) => u.id == user.id);
-
-                            return CheckboxListTile(
-                              value: isSelected,
-                              title: Text(user.username),
-                              subtitle: Text(user.email),
-                              secondary: CircleAvatar(
-                                child: Text(user.username[0].toUpperCase()),
-                              ),
-                              onChanged: (_) => _toggleSelectUser(user),
-                            );
-                          },
+                  ? Center(
+                      child: Text(
+                        _searchController.text.isEmpty
+                            ? 'Type a username to search'
+                            : 'No users found',
+                        style: TextStyle(
+                          color: isDark
+                              ? AppTheme.darkTextSecondary
+                              : AppTheme.lightTextSecondary,
+                          fontSize: 13,
                         ),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: _searchResults.length,
+                      itemBuilder: (context, index) {
+                        final user = _searchResults[index];
+                        final isSelected = _selectedUsers.any(
+                          (u) => u.id == user.id,
+                        );
+
+                        return CheckboxListTile(
+                          value: isSelected,
+                          title: Text(user.username),
+                          subtitle: Text(user.email),
+                          secondary: CircleAvatar(
+                            child: Text(user.username[0].toUpperCase()),
+                          ),
+                          onChanged: (_) => _toggleSelectUser(user),
+                        );
+                      },
+                    ),
             ),
             const SizedBox(height: 16),
 
@@ -279,8 +290,9 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           )
                         : const Text(

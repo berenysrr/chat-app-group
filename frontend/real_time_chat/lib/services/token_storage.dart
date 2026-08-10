@@ -14,7 +14,10 @@ class TokenStorage {
   String? _memAccess;
   String? _memRefresh;
 
-  Future<void> saveTokens({required String access, required String refresh}) async {
+  Future<void> saveTokens({
+    required String access,
+    required String refresh,
+  }) async {
     _memAccess = access;
     _memRefresh = refresh;
     try {

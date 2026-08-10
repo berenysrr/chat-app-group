@@ -51,8 +51,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) =>
-                ChatDetailScreen(conversation: conversation),
+            builder: (context) => ChatDetailScreen(conversation: conversation),
           ),
         );
       }
@@ -103,10 +102,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
               style: TextStyle(color: textPrimary, fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Search contacts by username or email...',
-                hintStyle: TextStyle(
-                  color: textSecondary,
-                  fontSize: 14,
-                ),
+                hintStyle: TextStyle(color: textSecondary, fontSize: 14),
                 prefixIcon: Icon(
                   Icons.search_rounded,
                   color: textSecondary,
@@ -114,8 +110,11 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                 ),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
-                        icon: Icon(Icons.close_rounded,
-                            size: 16, color: textSecondary),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          size: 16,
+                          color: textSecondary,
+                        ),
                         onPressed: () {
                           _searchController.clear();
                           _performSearch('');
@@ -137,34 +136,32 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
           child: _isSearching
               ? const Center(
                   child: CircularProgressIndicator(
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(AppTheme.primary),
+                    valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primary),
                     strokeWidth: 2.5,
                   ),
                 )
               : _searchController.text.isEmpty
-                  ? _buildPromptState(context)
-                  : _searchResults.isEmpty
-                      ? _buildNoResults(context)
-                      : ListView.separated(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemCount: _searchResults.length,
-                          separatorBuilder: (context, i) => Divider(
-                            height: 1,
-                            indent: 72,
-                            color: border.withValues(alpha: 0.7),
-                          ),
-                          itemBuilder: (context, index) {
-                            final user = _searchResults[index];
-                            final isStarting =
-                                _startingChatUserId == user.id;
-                            return _WhatsAppUserTile(
-                              user: user,
-                              isStarting: isStarting,
-                              onChat: () => _startChat(user),
-                            );
-                          },
-                        ),
+              ? _buildPromptState(context)
+              : _searchResults.isEmpty
+              ? _buildNoResults(context)
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: _searchResults.length,
+                  separatorBuilder: (context, i) => Divider(
+                    height: 1,
+                    indent: 72,
+                    color: border.withValues(alpha: 0.7),
+                  ),
+                  itemBuilder: (context, index) {
+                    final user = _searchResults[index];
+                    final isStarting = _startingChatUserId == user.id;
+                    return _WhatsAppUserTile(
+                      user: user,
+                      isStarting: isStarting,
+                      onChat: () => _startChat(user),
+                    );
+                  },
+                ),
         ),
       ],
     );
@@ -198,10 +195,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
             Text(
               'Search for someone by username or email to start chatting.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: textSecondary,
-                fontSize: 13,
-              ),
+              style: TextStyle(color: textSecondary, fontSize: 13),
             ),
           ],
         ),
@@ -219,11 +213,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.person_off_rounded,
-              size: 48,
-              color: textSecondary,
-            ),
+            Icon(Icons.person_off_rounded, size: 48, color: textSecondary),
             const SizedBox(height: 16),
             Text(
               'No contacts found',
@@ -303,10 +293,7 @@ class _WhatsAppUserTile extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     user.email,
-                    style: TextStyle(
-                      color: textSecondary,
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: textSecondary, fontSize: 13),
                   ),
                 ],
               ),
@@ -323,10 +310,7 @@ class _WhatsAppUserTile extends StatelessWidget {
                         color: AppTheme.primary,
                       ),
                     )
-                  : const Icon(
-                      Icons.chat_rounded,
-                      color: AppTheme.primary,
-                    ),
+                  : const Icon(Icons.chat_rounded, color: AppTheme.primary),
               onPressed: isStarting ? null : onChat,
             ),
           ],

@@ -19,49 +19,50 @@ class AppTheme {
   static Color get lightTextSecondary => const Color(0xFF64748B);
 
   // Global Theme Mode Switcher
-  static final ValueNotifier<ThemeMode> themeModeNotifier =
-      ValueNotifier(ThemeMode.dark);
+  static final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier(
+    ThemeMode.dark,
+  );
 
   // Dynamic Color Tokens (Sleek Tech Dark / Clean Slate Light)
   static Color bg(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-          ? const Color(0xFF0F172A) // Deep Slate Charcoal
-          : const Color(0xFFF8FAFC); // Clean Slate Snow
+      ? const Color(0xFF0F172A) // Deep Slate Charcoal
+      : const Color(0xFFF8FAFC); // Clean Slate Snow
 
   static Color leftPanelBg(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-          ? const Color(0xFF1E293B) // Discord / Slate Dark
-          : const Color(0xFFFFFFFF);
+      ? const Color(0xFF1E293B) // Discord / Slate Dark
+      : const Color(0xFFFFFFFF);
 
   static Color headerBg(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-          ? const Color(0xFF0F172A)
-          : const Color(0xFFF1F5F9);
+      ? const Color(0xFF0F172A)
+      : const Color(0xFFF1F5F9);
 
   static Color surface(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-          ? const Color(0xFF1E293B)
-          : const Color(0xFFFFFFFF);
+      ? const Color(0xFF1E293B)
+      : const Color(0xFFFFFFFF);
 
   static Color card(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-          ? const Color(0xFF1E293B)
-          : const Color(0xFFFFFFFF);
+      ? const Color(0xFF1E293B)
+      : const Color(0xFFFFFFFF);
 
   static Color cardBorder(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-          ? const Color(0xFF334155) // Sharp Technical Border
-          : const Color(0xFFE2E8F0);
+      ? const Color(0xFF334155) // Sharp Technical Border
+      : const Color(0xFFE2E8F0);
 
   static Color textPrimary(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-          ? const Color(0xFFF8FAFC)
-          : const Color(0xFF0F172A);
+      ? const Color(0xFFF8FAFC)
+      : const Color(0xFF0F172A);
 
   static Color textSecondary(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-          ? const Color(0xFF94A3B8)
-          : const Color(0xFF64748B);
+      ? const Color(0xFF94A3B8)
+      : const Color(0xFF64748B);
 
   // Sleek Tech Gradients
   static const LinearGradient primaryGradient = LinearGradient(
@@ -98,8 +99,8 @@ class AppTheme {
 
   static LinearGradient dynamicBackgroundGradient(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-          ? darkBackgroundGradient
-          : lightBackgroundGradient;
+      ? darkBackgroundGradient
+      : lightBackgroundGradient;
 
   // ThemeData definitions
   static ThemeData get darkTheme => ThemeData(
@@ -127,6 +128,9 @@ class AppTheme {
       iconTheme: IconThemeData(color: Color(0xFF94A3B8)),
     ),
   );
+
+  // Chat modülünün önceki tema API'si için uyumluluk alias'ı.
+  static ThemeData get dark => darkTheme;
 
   static ThemeData get lightTheme => ThemeData(
     useMaterial3: true,

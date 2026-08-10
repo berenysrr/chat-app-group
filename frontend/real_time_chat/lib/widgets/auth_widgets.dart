@@ -29,8 +29,12 @@ class DarkField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor = isDark ? const Color(0xFF2B3248) : const Color(0xFFCBD5E1);
-    final fillColor = isDark ? const Color(0xFF131722) : const Color(0xFFFFFFFF);
+    final borderColor = isDark
+        ? const Color(0xFF2B3248)
+        : const Color(0xFFCBD5E1);
+    final fillColor = isDark
+        ? const Color(0xFF131722)
+        : const Color(0xFFFFFFFF);
     final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
     final hintColor = isDark
         ? Colors.white.withValues(alpha: 0.45)
@@ -62,8 +66,10 @@ class DarkField extends StatelessWidget {
             : null,
         filled: true,
         fillColor: fillColor,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 16,
+        ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: borderColor),
@@ -112,7 +118,8 @@ class GradientButton extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: isLoading
               ? const LinearGradient(
-                  colors: [Color(0xFF4F46E5), Color(0xFF6366F1)])
+                  colors: [Color(0xFF4F46E5), Color(0xFF6366F1)],
+                )
               : AppTheme.primaryGradient,
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
@@ -166,8 +173,11 @@ class ErrorBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded,
-              color: Color(0xFFFCA5A5), size: 18),
+          const Icon(
+            Icons.error_outline_rounded,
+            color: Color(0xFFFCA5A5),
+            size: 18,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(

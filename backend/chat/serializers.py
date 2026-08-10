@@ -21,8 +21,8 @@ class ConversationMemberSerializer(serializers.ModelSerializer):
     """
     user = UserMinimalSerializer(read_only=True)
     user_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(), 
-        write_only=True, 
+        queryset=User.objects.all(),
+        write_only=True,
         source='user'
     )
 
@@ -43,14 +43,14 @@ class MessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
         fields = (
-            'id', 
-            'conversation', 
-            'sender', 
-            'client_message_id', 
-            'content', 
-            'message_type', 
-            'created_at', 
-            'updated_at', 
+            'id',
+            'conversation',
+            'sender',
+            'client_message_id',
+            'content',
+            'message_type',
+            'created_at',
+            'updated_at',
             'is_deleted',
             'read_count',
             'is_read_by_me'
@@ -73,24 +73,24 @@ class ConversationSerializer(serializers.ModelSerializer):
     """
     members = ConversationMemberSerializer(many=True, read_only=True)
     last_message = serializers.SerializerMethodField()
-    
+
     # Yeni sohbet oluşturma parametreleri (Write-only)
     member_ids = serializers.ListField(
-        child=serializers.IntegerField(), 
-        write_only=True, 
+        child=serializers.IntegerField(),
+        write_only=True,
         required=False
     )
 
     class Meta:
         model = Conversation
         fields = (
-            'id', 
-            'type', 
-            'name', 
-            'created_by', 
-            'members', 
-            'last_message', 
-            'created_at', 
+            'id',
+            'type',
+            'name',
+            'created_by',
+            'members',
+            'last_message',
+            'created_at',
             'updated_at',
             'member_ids'
         )
@@ -120,11 +120,11 @@ class ConversationSerializer(serializers.ModelSerializer):
             name = attrs.get('name')
             if not name or not name.strip():
                 raise serializers.ValidationError({"name": "Grup sohbeti için grup adı gereklidir."})
-            
+
             member_ids = attrs.get('member_ids', [])
             # Grubu kuran kişi haricinde seçilen üyelerin kontrolü
             unique_member_ids = set(member_ids) - {request_user.id}
-            
+
             if len(unique_member_ids) + 1 > 5:
                 raise serializers.ValidationError({"member_ids": "Bir grup sohbeti en fazla 5 kişiden oluşabilir."})
 
