@@ -1,0 +1,197 @@
+# =========================
+
+# General
+
+# =========================
+
+.DS_Store
+Thumbs.db
+
+# Environment files
+
+.env
+.env.*
+!.env.example
+
+# IDE
+
+.idea/
+.vscode/
+*.iml
+
+# Logs
+
+*.log
+
+# =========================
+
+# Python / Django
+
+# =========================
+
+**pycache**/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+
+venv/
+.venv/
+env/
+ENV/
+
+# Django
+
+*.sqlite3
+db.sqlite3
+
+
+# Coverage
+
+.coverage
+htmlcov/
+.pytest_cache/
+.coverage.*
+
+# =========================
+
+# Django Static / Media
+
+# =========================
+
+staticfiles/
+media/
+
+# Eğer media dosyalarını Git'e koymak istiyorsanız
+
+# aşağıdaki satırı kaldırabilirsiniz.
+
+# =========================
+
+# Python Tools
+
+# =========================
+
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.pyre/
+
+# =========================
+
+# Flutter / Dart
+
+# =========================
+
+# Flutter generated files
+
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+
+# Flutter generated plugins
+
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Generated files
+
+*.g.dart
+*.freezed.dart
+
+# Flutter IDE
+
+.flutter-plugins-dependencies
+
+# Android
+
+android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/local.properties
+android/**/GeneratedPluginRegistrant.java
+
+# iOS
+
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/ephemeral/
+ios/Flutter/.last_build_id
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+
+# macOS
+
+macos/Pods/
+macos/Flutter/ephemeral/
+macos/Flutter/GeneratedPluginRegistrant.swift
+
+# Linux
+
+linux/flutter/ephemeral/
+
+# Windows
+
+windows/flutter/ephemeral/
+
+# =========================
+
+# Node / JavaScript
+
+# =========================
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+
+# Testing
+
+# =========================
+
+coverage/
+test-results/
+
+# =========================
+
+# Secrets / Certificates
+
+# =========================
+
+*.pem
+*.key
+*.p12
+*.jks
+
+# Firebase / service credentials
+
+google-services.json
+GoogleService-Info.plist
+
+# =========================
+
+# OS Generated
+
+# =========================
+
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# macOS Finder
+
+Icon?
+
+# Temporary files
+
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
