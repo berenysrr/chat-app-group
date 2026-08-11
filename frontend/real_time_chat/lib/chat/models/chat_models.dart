@@ -188,8 +188,7 @@ class ChatMessage {
         if (status.name == rawStatus) return status;
       }
     }
-    final readCount = int.tryParse('${json['read_count'] ?? 0}') ?? 0;
-    if (readCount > 0 || json['read_at'] != null) return MessageStatus.read;
+    if (json['is_read_by_all'] == true) return MessageStatus.read;
     if (json['delivered_at'] != null) return MessageStatus.delivered;
     return MessageStatus.delivered;
   }
@@ -336,16 +335,28 @@ class ReadEvent {
     required this.messageId,
     required this.userId,
     required this.readAt,
+    required this.readCount,
+    required this.recipientCount,
+    required this.isReadByAll,
   });
   final int messageId;
   final int userId;
   final DateTime readAt;
+  final int readCount;
+  final int recipientCount;
+  final bool isReadByAll;
   factory ReadEvent.fromJson(Map<String, dynamic> json) => ReadEvent(
     messageId: _requiredInt(json['message_id'], 'read.message_id'),
     userId: _requiredInt(json['user_id'], 'read.user_id'),
     readAt: DateTime.parse(
       _requiredString(json['read_at'], 'read.read_at'),
     ).toLocal(),
+    readCount: _requiredInt(json['read_count'], 'read.read_count'),
+    recipientCount: _requiredInt(
+      json['recipient_count'],
+      'read.recipient_count',
+    ),
+    isReadByAll: json['is_read_by_all'] == true,
   );
 }
 

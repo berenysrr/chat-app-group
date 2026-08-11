@@ -63,13 +63,30 @@ def save_message_to_db(
 
 
 @database_sync_to_async
-def save_message_read_to_db(user, message_id):
+def save_message_read_to_db(user, message_id, conversation_id):
     """Okundu bilgisini veritabanına yazar."""
-    obj, created = MessageRead.objects.get_or_create(
-        message_id=message_id,
-        user=user
-    )
-    return obj.read_at.isoformat()
+    message = Message.objects.filter(
+        id=message_id,
+        conversation_id=conversation_id,
+        conversation__members__user=user,
+        is_deleted=False,
+    ).first()
+    if message is None or message.sender_id == user.id:
+        return None
+    obj, _ = MessageRead.objects.get_or_create(message=message, user=user)
+    recipient_count = ConversationMember.objects.filter(
+        conversation_id=conversation_id,
+    ).exclude(user_id=message.sender_id).count()
+    read_count = MessageRead.objects.filter(
+        message=message,
+        user__conversations__conversation_id=conversation_id,
+    ).exclude(user_id=message.sender_id).values('user_id').distinct().count()
+    return {
+        'read_at': obj.read_at.isoformat(),
+        'read_count': read_count,
+        'recipient_count': recipient_count,
+        'is_read_by_all': recipient_count > 0 and read_count >= recipient_count,
+    }
 
 
 @database_sync_to_async
@@ -340,7 +357,13 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             return
 
         # GERÇEK VERİTABANINA OKUNDU BİLGİSİNİ KAYDET
-        read_at_str = await save_message_read_to_db(self.user, message_id)
+        receipt = await save_message_read_to_db(
+            self.user,
+            message_id,
+            int(self.conversation_id),
+        )
+        if receipt is None:
+            return
 
         await self.channel_layer.group_send(
             self.room_group_name,
@@ -348,7 +371,10 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 "type": "message_read_event",
                 "message_id": message_id,
                 "user_id": self.user.id,
-                "read_at": read_at_str,
+                "read_at": receipt["read_at"],
+                "read_count": receipt["read_count"],
+                "recipient_count": receipt["recipient_count"],
+                "is_read_by_all": receipt["is_read_by_all"],
             }
         )
 
@@ -385,7 +411,10 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             "data": {
                 "message_id": event["message_id"],
                 "user_id": event["user_id"],
-                "read_at": event["read_at"]
+                "read_at": event["read_at"],
+                "read_count": event["read_count"],
+                "recipient_count": event["recipient_count"],
+                "is_read_by_all": event["is_read_by_all"],
             }
         })
 

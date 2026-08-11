@@ -237,6 +237,44 @@ void main() {
     controller.dispose();
   });
 
+  test(
+    'group message becomes read only after every recipient reads it',
+    () async {
+      final socket = MockWebSocketService(autoReplyEnabled: false);
+      final controller = ChatController(
+        socket: socket,
+        currentUser: me,
+        peer: const ChatUser(id: -3, username: 'Proje Grubu'),
+        conversationId: 3,
+        initialMessages: [
+          ChatMessage(
+            id: 50,
+            clientMessageId: 'group-message',
+            conversationId: 3,
+            sender: me,
+            content: 'Herkese merhaba',
+            createdAt: DateTime(2026, 8, 11),
+            status: MessageStatus.delivered,
+          ),
+        ],
+      );
+      await controller.initialize();
+
+      socket.emitRead(messageId: 50, readCount: 1, recipientCount: 2);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.messages.single.status, MessageStatus.delivered);
+
+      socket.emitRead(messageId: 50, readCount: 2, recipientCount: 2);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.messages.single.status, MessageStatus.read);
+
+      socket.emitRead(messageId: 50, readCount: 1, recipientCount: 2);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.messages.single.status, MessageStatus.read);
+      controller.dispose();
+    },
+  );
+
   test('read is sent once only while conversation is visible', () async {
     final socket = MockWebSocketService();
     final controller = buildController(socket);

@@ -3,7 +3,7 @@ from rest_framework.test import APITestCase
 from rest_framework import status
 from chat.models import Conversation, ConversationMember, Message, MessageRead
 from chat.serializers import MessageSerializer
-from chat.consumers import save_message_to_db
+from chat.consumers import save_message_read_to_db, save_message_to_db
 from asgiref.sync import async_to_sync
 
 User = get_user_model()
@@ -221,3 +221,85 @@ class ChatBackendTests(APITestCase):
         after = self.client.get('/api/conversations/')
         self.assertEqual(after.status_code, status.HTTP_200_OK)
         self.assertEqual(after.data['results'][0]['unread_count'], 0)
+
+    def test_group_message_is_read_by_all_only_after_every_recipient_reads(self):
+        conversation = Conversation.objects.create(
+            type='group',
+            created_by=self.user1,
+        )
+        ConversationMember.objects.create(
+            conversation=conversation,
+            user=self.user1,
+            role='admin',
+        )
+        ConversationMember.objects.create(
+            conversation=conversation,
+            user=self.user2,
+            role='member',
+        )
+        ConversationMember.objects.create(
+            conversation=conversation,
+            user=self.user3,
+            role='member',
+        )
+        message = Message.objects.create(
+            conversation=conversation,
+            sender=self.user1,
+            content='Herkese merhaba',
+        )
+
+        first_receipt = async_to_sync(save_message_read_to_db)(
+            self.user2,
+            message.id,
+            conversation.id,
+        )
+        self.assertEqual(first_receipt['read_count'], 1)
+        self.assertEqual(first_receipt['recipient_count'], 2)
+        self.assertFalse(first_receipt['is_read_by_all'])
+
+        partial_payload = MessageSerializer(message).data
+        self.assertEqual(partial_payload['read_count'], 1)
+        self.assertEqual(partial_payload['recipient_count'], 2)
+        self.assertFalse(partial_payload['is_read_by_all'])
+
+        final_receipt = async_to_sync(save_message_read_to_db)(
+            self.user3,
+            message.id,
+            conversation.id,
+        )
+        self.assertEqual(final_receipt['read_count'], 2)
+        self.assertEqual(final_receipt['recipient_count'], 2)
+        self.assertTrue(final_receipt['is_read_by_all'])
+
+        final_payload = MessageSerializer(message).data
+        self.assertTrue(final_payload['is_read_by_all'])
+
+    def test_sender_cannot_mark_own_message_as_read(self):
+        conversation = Conversation.objects.create(
+            type='private',
+            created_by=self.user1,
+        )
+        ConversationMember.objects.create(
+            conversation=conversation,
+            user=self.user1,
+            role='admin',
+        )
+        ConversationMember.objects.create(
+            conversation=conversation,
+            user=self.user2,
+            role='member',
+        )
+        message = Message.objects.create(
+            conversation=conversation,
+            sender=self.user1,
+            content='Merhaba',
+        )
+
+        receipt = async_to_sync(save_message_read_to_db)(
+            self.user1,
+            message.id,
+            conversation.id,
+        )
+
+        self.assertIsNone(receipt)
+        self.assertFalse(MessageRead.objects.filter(message=message).exists())
