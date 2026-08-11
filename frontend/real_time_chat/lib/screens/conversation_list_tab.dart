@@ -63,6 +63,19 @@ class _ConversationListTabState extends State<ConversationListTab> {
   }
 
   @override
+  void didUpdateWidget(covariant ConversationListTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final snapshot = widget.selectedConversation;
+    if (snapshot == null || snapshot == oldWidget.selectedConversation) return;
+    final index = _conversations.indexWhere((item) => item.id == snapshot.id);
+    if (index < 0) return;
+    setState(() {
+      _conversations[index] = snapshot;
+      _filterConversations(_filterController.text);
+    });
+  }
+
+  @override
   void dispose() {
     _searchDebounce?.cancel();
     _refreshTimer?.cancel();

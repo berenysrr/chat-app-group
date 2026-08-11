@@ -275,6 +275,28 @@ void main() {
     },
   );
 
+  test('presence never marks an outgoing message as read', () async {
+    final socket = MockWebSocketService(autoReplyEnabled: false);
+    final controller = buildController(socket);
+    await controller.initialize();
+    expect(controller.send('Okunmayi bekleyen mesaj'), isTrue);
+
+    socket.emitPresence(userId: peer.id, username: peer.username, online: true);
+    await Future<void>.delayed(const Duration(milliseconds: 950));
+
+    expect(controller.peerIsOnline, isTrue);
+    expect(controller.messages.single.status, MessageStatus.delivered);
+
+    socket.emitRead(
+      messageId: controller.messages.single.id!,
+      readCount: 1,
+      recipientCount: 1,
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.messages.single.status, MessageStatus.read);
+    controller.dispose();
+  });
+
   test('read is sent once only while conversation is visible', () async {
     final socket = MockWebSocketService();
     final controller = buildController(socket);

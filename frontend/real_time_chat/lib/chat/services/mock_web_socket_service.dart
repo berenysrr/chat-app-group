@@ -107,21 +107,6 @@ class MockWebSocketService implements WebSocketService {
         ),
       ),
     );
-    _timers.add(
-      Timer(
-        const Duration(milliseconds: 900),
-        () => _reads.add(
-          ReadEvent(
-            messageId: id,
-            userId: peerId,
-            readAt: DateTime.now(),
-            readCount: 1,
-            recipientCount: 1,
-            isReadByAll: true,
-          ),
-        ),
-      ),
-    );
     if (messageType == 'audio' || !autoReplyEnabled) return;
     _emitTypingEvent(isTyping: true);
     final reply = _nextReply();
