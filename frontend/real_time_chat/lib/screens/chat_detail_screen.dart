@@ -379,6 +379,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     final timeStr =
         '${msg.createdAt.hour.toString().padLeft(2, '0')}:${msg.createdAt.minute.toString().padLeft(2, '0')}';
+    final showSenderName = shouldShowGroupSenderName(
+      conversationType: widget.conversation.type,
+      isCurrentUser: isMe,
+    );
 
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -412,6 +416,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               : CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (showSenderName) ...[
+              GroupMessageSenderName(sender: msg.sender),
+              const SizedBox(height: 4),
+            ],
             Text(
               msg.content,
               style: TextStyle(
@@ -444,6 +452,41 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+bool shouldShowGroupSenderName({
+  required String conversationType,
+  required bool isCurrentUser,
+}) => conversationType == 'group' && !isCurrentUser;
+
+class GroupMessageSenderName extends StatelessWidget {
+  const GroupMessageSenderName({super.key, required this.sender});
+
+  final UserModel sender;
+
+  @override
+  Widget build(BuildContext context) {
+    final username = sender.username.trim();
+    final email = sender.email.trim();
+    final name = username.isNotEmpty
+        ? username
+        : (email.isNotEmpty ? email : 'Kullanıcı');
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 260),
+      child: Text(
+        name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: AppTheme.primaryLight,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          height: 1.2,
         ),
       ),
     );
