@@ -57,10 +57,15 @@ Request:
   "type": "message.send",
   "data": {
     "client_message_id": "550e8400-e29b-41d4-a716-446655440000",
-    "content": "Merhaba"
+    "content": "Merhaba",
+    "reply_to": 12
   }
 }
 ```
+
+`reply_to` opsiyoneldir ve aynı conversation içindeki mevcut mesajın ID'sidir.
+Reply mesajlarında `message.new.data.reply_to`, `id`, `sender`, `content` ve
+`message_type` alanlarını içeren küçük bir mesaj özeti olarak döner.
 
 `client_message_id` frontend tarafından üretilen UUID olmalıdır.
 Aynı kullanıcı aynı conversation içinde aynı `client_message_id` ile tekrar mesaj gönderirse backend yeni mesaj oluşturmamalı, mevcut mesaj için tekrar `message.ack` dönmelidir.
@@ -175,6 +180,12 @@ Server:
       "id": 1,
       "username": "user1",
       "avatar": null
+    },
+    "reply_to": {
+      "id": 12,
+      "sender": {"id": 2, "username": "user2", "avatar": null},
+      "content": "Yarın geliyor musun?",
+      "message_type": "text"
     },
     "content": "Merhaba",
     "message_type": "text",

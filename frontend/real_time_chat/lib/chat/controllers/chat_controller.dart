@@ -211,6 +211,7 @@ class ChatController extends ChangeNotifier {
           clientMessageId: message.clientMessageId,
           content: message.content,
           messageType: message.messageType,
+          replyToMessageId: message.replyTo?.id,
         );
       }
     } on Object catch (error) {
@@ -240,9 +241,15 @@ class ChatController extends ChangeNotifier {
     _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
   }
 
-  bool send(String rawContent, {String messageType = 'text'}) {
+  bool send(
+    String rawContent, {
+    String messageType = 'text',
+    ChatMessage? replyTo,
+  }) {
     final content = rawContent.trim();
-    if (content.isEmpty) return false;
+    if (content.isEmpty || (replyTo != null && replyTo.id == null)) {
+      return false;
+    }
     final clientId = const Uuid().v4();
     _messages.add(
       ChatMessage(
@@ -254,6 +261,7 @@ class ChatController extends ChangeNotifier {
         messageType: messageType,
         createdAt: DateTime.now(),
         status: MessageStatus.pending,
+        replyTo: replyTo == null ? null : ReplyMessageInfo.fromMessage(replyTo),
       ),
     );
     notifyListeners();
@@ -263,6 +271,7 @@ class ChatController extends ChangeNotifier {
         clientMessageId: clientId,
         content: content,
         messageType: messageType,
+        replyToMessageId: replyTo?.id,
       );
       _replaceByClientId(
         clientId,
@@ -297,6 +306,7 @@ class ChatController extends ChangeNotifier {
         clientMessageId: message.clientMessageId,
         content: message.content,
         messageType: message.messageType,
+        replyToMessageId: message.replyTo?.id,
       );
       _messages[index] = _messages[index].copyWith(status: MessageStatus.sent);
       notifyListeners();

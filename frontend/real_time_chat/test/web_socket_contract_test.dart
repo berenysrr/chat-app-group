@@ -67,6 +67,12 @@ void main() {
           'client_message_id': 'client-1',
           'conversation_id': 3,
           'sender': {'id': 1, 'username': 'user1', 'avatar': null},
+          'reply_to': {
+            'id': 12,
+            'sender': {'id': 2, 'username': 'user2', 'avatar': null},
+            'content': 'Yarın geliyor musun?',
+            'message_type': 'text',
+          },
           'content': 'Merhaba',
           'message_type': 'text',
           'created_at': '2026-08-10T10:30:00Z',
@@ -75,9 +81,9 @@ void main() {
     );
 
     expect((await ackFuture.timeout(const Duration(seconds: 1))).messageId, 15);
-    expect(
-      (await messageFuture.timeout(const Duration(seconds: 1))).content,
-      'Merhaba',
-    );
+    final message = await messageFuture.timeout(const Duration(seconds: 1));
+    expect(message.content, 'Merhaba');
+    expect(message.replyTo?.id, 12);
+    expect(message.replyTo?.senderName, 'user2');
   });
 }

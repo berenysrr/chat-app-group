@@ -188,6 +188,10 @@ Response:
 
 # Conversations
 
+Mesaj nesneleri opsiyonel `reply_to` özeti döndürür. Bu özet cevaplanan
+mesajın `id`, `sender`, `content` ve `message_type` alanlarını içerir; reply
+olmayan mesajlarda değer `null` olur.
+
 ## List
 
 `GET /conversations/`

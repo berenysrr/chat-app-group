@@ -29,6 +29,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   late final ChatController _controller;
   int previousCount = 0;
   bool showJumpButton = false;
+  ChatMessage? _replyingTo;
   @override
   void initState() {
     super.initState();
@@ -235,6 +236,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                                 showSenderNames: widget.showSenderNames,
                               ),
                               showTail: showTail,
+                              onReply: message.id == null
+                                  ? null
+                                  : () => setState(() => _replyingTo = message),
                               onRetry: message.status == MessageStatus.failed
                                   ? () => controller.retryMessage(
                                       message.clientMessageId,
@@ -264,7 +268,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               border: Border(top: BorderSide(color: border)),
             ),
             child: MessageInput(
-              onSend: controller.send,
+              replyingTo: _replyingTo == null
+                  ? null
+                  : ReplyMessageInfo.fromMessage(_replyingTo!),
+              onCancelReply: () => setState(() => _replyingTo = null),
+              onSend: (content, {messageType = 'text'}) {
+                final sent = controller.send(
+                  content,
+                  messageType: messageType,
+                  replyTo: _replyingTo,
+                );
+                if (sent) setState(() => _replyingTo = null);
+                return sent;
+              },
               onChanged: controller.onInputChanged,
             ),
           ),
