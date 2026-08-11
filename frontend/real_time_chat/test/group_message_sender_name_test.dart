@@ -45,7 +45,7 @@ void main() {
     );
   });
 
-  testWidgets('message bubble renders sender above incoming group message', (
+  testWidgets('message bubble renders sender inside incoming group bubble', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -66,6 +66,14 @@ void main() {
     final text = tester.widget<Text>(find.text('Ahmet Yılmaz'));
     expect(text.maxLines, 1);
     expect(text.overflow, TextOverflow.ellipsis);
+    expect(text.textAlign, TextAlign.left);
+    expect(
+      find.ancestor(
+        of: find.byKey(const Key('group-message-sender-name')),
+        matching: find.byType(AnimatedContainer),
+      ),
+      findsOneWidget,
+    );
   });
 
   test('sender name falls back to email', () {

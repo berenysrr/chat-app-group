@@ -177,31 +177,13 @@ class MessageBubble extends StatelessWidget {
       messageType: message.messageType,
       content: message.content,
     );
+    final visibleSenderName = senderName?.trim();
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: isMine
           ? CrossAxisAlignment.end
           : CrossAxisAlignment.start,
       children: [
-        if (senderName != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 2, 14, 3),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.sizeOf(context).width * .72,
-              ),
-              child: Text(
-                senderName!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppTheme.primaryLight,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
         GestureDetector(
           onTap: message.status == MessageStatus.failed ? onRetry : null,
           onLongPress: onReply,
@@ -234,6 +216,21 @@ class MessageBubble extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (visibleSenderName?.isNotEmpty == true) ...[
+                    Text(
+                      visibleSenderName!,
+                      key: const Key('group-message-sender-name'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.left,
+                      style: const TextStyle(
+                        color: AppTheme.primaryLight,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                  ],
                   if (message.replyTo != null)
                     ReplyQuotePreview(reply: message.replyTo!, isMine: isMine),
                   if (message.replyTo != null) const SizedBox(height: 7),
