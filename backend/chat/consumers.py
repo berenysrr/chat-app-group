@@ -2,8 +2,10 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
 from uuid import UUID
-from .models import ConversationMember, Message, MessageRead
+from .models import Conversation, ConversationMember, Message, MessageRead
 from accounts.models import User
+
+ALLOWED_MESSAGE_TYPES = {'text', 'audio'}
 
 
 # --- VERİTABANI İŞLEMLERİ (DATABASE HELPERS) ---
@@ -18,14 +20,24 @@ def is_user_member(user_id, conversation_id):
 
 
 @database_sync_to_async
-def save_message_to_db(user, conversation_id, content, client_message_id):
+def save_message_to_db(
+    user,
+    conversation_id,
+    content,
+    client_message_id,
+    message_type='text',
+):
     """Gelen mesajı PostgreSQL/SQLite veritabanına kaydeder."""
     message, created = Message.objects.get_or_create(
         conversation_id=conversation_id,
         sender=user,
         client_message_id=client_message_id,
-        defaults={'content': content, 'message_type': 'text'},
+        defaults={'content': content, 'message_type': message_type},
     )
+    if created:
+        Conversation.objects.filter(id=conversation_id).update(
+            updated_at=timezone.now()
+        )
     return message, created
 
 
@@ -42,9 +54,10 @@ def save_message_read_to_db(user, message_id):
 @database_sync_to_async
 def set_user_online_status(user_id, is_online):
     """Kullanıcının online/offline durumunu User tablosunda günceller."""
-    update_fields = {'is_online': is_online}
-    if not is_online:
-        update_fields['last_seen'] = timezone.now()
+    update_fields = {
+        'is_online': is_online,
+        'last_seen': timezone.now(),
+    }
     User.objects.filter(id=user_id).update(**update_fields)
 
 
@@ -115,7 +128,9 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         event_type = content.get("type")
         data = content.get("data", {})
 
-        if event_type == "message.send":
+        if event_type == "ping":
+            await self.send_json({"type": "pong"})
+        elif event_type == "message.send":
             await self.handle_message_send(data)
         elif event_type == "typing.start":
             await self.handle_typing_start()
@@ -125,6 +140,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             await self.handle_message_read(data)
         else:
             await self.send_json({
+
                 "type": "error",
                 "data": {
                     "code": "INVALID_EVENT",
@@ -135,8 +151,10 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
     # --- HANDLERS ---
 
     async def handle_message_send(self, data):
-        content = data.get("content", "").strip()
+        raw_content = data.get("content", "")
+        content = raw_content.strip() if isinstance(raw_content, str) else ""
         client_message_id = data.get("client_message_id")
+        message_type = str(data.get("message_type") or 'text').strip().lower()
 
         if not client_message_id:
             await self.send_json({"type": "error", "data": {"code": "CLIENT_MESSAGE_ID_REQUIRED", "message": "client_message_id is required."}})
@@ -147,6 +165,16 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             await self.send_json({"type": "error", "data": {"code": "CLIENT_MESSAGE_ID_INVALID", "message": "client_message_id must be a UUID."}})
             return
 
+        if message_type not in ALLOWED_MESSAGE_TYPES:
+            await self.send_json({
+                "type": "error",
+                "data": {
+                    "code": "MESSAGE_TYPE_INVALID",
+                    "message": f"Unsupported message_type: {message_type}",
+                }
+            })
+            return
+
         if not content:
             await self.send_json({
                 "type": "error",
@@ -154,8 +182,34 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             })
             return
 
+        if message_type == 'audio':
+            if not content.startswith('data:audio/'):
+                await self.send_json({
+                    "type": "error",
+                    "data": {
+                        "code": "AUDIO_PAYLOAD_INVALID",
+                        "message": "Audio messages must be sent as a data:audio/* payload.",
+                    }
+                })
+                return
+            if len(content) > 2_500_000:
+                await self.send_json({
+                    "type": "error",
+                    "data": {
+                        "code": "AUDIO_TOO_LARGE",
+                        "message": "Audio payload is too large.",
+                    }
+                })
+                return
+
         # GERÇEK VERİTABANINA MESAJI KAYDET
-        msg, created = await save_message_to_db(self.user, int(self.conversation_id), content, client_message_id)
+        msg, created = await save_message_to_db(
+            self.user,
+            int(self.conversation_id),
+            content,
+            client_message_id,
+            message_type,
+        )
 
         await self.send_json({
             "type": "message.ack",

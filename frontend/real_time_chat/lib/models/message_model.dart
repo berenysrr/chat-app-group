@@ -20,6 +20,9 @@ class MessageModel {
   });
 
   factory MessageModel.fromJson(Map<String, dynamic> json) {
+    final parsedCreatedAt = json['created_at'] != null
+        ? DateTime.tryParse(json['created_at'])?.toLocal()
+        : null;
     return MessageModel(
       id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
       conversationId: (json['conversation_id'] ?? json['conversation']) != null
@@ -35,9 +38,7 @@ class MessageModel {
           : UserModel(id: 0, username: 'Unknown', email: ''),
       content: json['content'] ?? '',
       messageType: json['message_type'] ?? 'text',
-      createdAt: json['created_at'] != null
-          ? (DateTime.tryParse(json['created_at']) ?? DateTime.now())
-          : DateTime.now(),
+      createdAt: parsedCreatedAt ?? DateTime.now(),
       isRead: json['is_read_by_me'] ?? json['is_read'] ?? false,
     );
   }

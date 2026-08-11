@@ -9,6 +9,7 @@ class AppTheme {
   static const Color secondary = Color(0xFF8B5CF6); // Vibrant Violet
   static const Color accent = Color(0xFF06B6D4); // Neon Cyan
   static const Color onlineGreen = Color(0xFF10B981); // Emerald Pulse
+  static const Color offlineRed = Color(0xFFEF4444);
   static const Color offlineGrey = Color(0xFF64748B);
   static const Color amber = Color(0xFFF59E0B);
 

@@ -54,6 +54,7 @@ class ConversationMember(models.Model):
 class Message(models.Model):
     TYPE_CHOICES = (
         ('text', 'Text'),
+        ('audio', 'Audio'),
     )
     conversation = models.ForeignKey(
         Conversation,

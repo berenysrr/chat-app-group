@@ -39,7 +39,11 @@ abstract interface class WebSocketService {
   Stream<String> get errors;
   Future<void> connect();
   Future<void> disconnect();
-  void sendMessage({required String clientMessageId, required String content});
+  void sendMessage({
+    required String clientMessageId,
+    required String content,
+    String messageType = 'text',
+  });
   void sendTypingStart();
   void sendTypingStop();
   void sendMessageRead(int messageId);
@@ -73,7 +77,9 @@ class ContractWebSocketService implements WebSocketService {
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
   Timer? _reconnectTimer;
+  Timer? _pingTimer;
   var _manuallyDisconnected = false;
+
   var _attempt = 0;
   var _connecting = false;
   var _disposed = false;
@@ -170,12 +176,21 @@ class ContractWebSocketService implements WebSocketService {
       _channel = channel;
       _attempt = 0;
       _emitState(SocketConnectionState.connected);
+      _pingTimer?.cancel();
+      _pingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+        if (_channel != null) {
+          try {
+            _channel!.sink.add(jsonEncode({'type': 'ping', 'data': {}}));
+          } catch (_) {}
+        }
+      });
       _subscription = channel.stream.listen(
         _handleFrame,
         onError: _handleError,
         onDone: _handleDone,
         cancelOnError: true,
       );
+
     } catch (error, stackTrace) {
       _reportError('WebSocket bağlantısı kurulamadı.', stackTrace);
       _scheduleReconnect();
@@ -278,12 +293,17 @@ class ContractWebSocketService implements WebSocketService {
   }
 
   @override
-  void sendMessage({required String clientMessageId, required String content}) {
+  void sendMessage({
+    required String clientMessageId,
+    required String content,
+    String messageType = 'text',
+  }) {
     final clean = content.trim();
     if (clean.isEmpty) throw ArgumentError('Mesaj boş olamaz.');
     _send('message.send', {
       'client_message_id': clientMessageId,
       'content': clean,
+      'message_type': messageType,
     });
   }
 
@@ -298,11 +318,14 @@ class ContractWebSocketService implements WebSocketService {
   }
 
   Future<void> _closeCurrentChannel() async {
+    _pingTimer?.cancel();
+    _pingTimer = null;
     await _subscription?.cancel();
     _subscription = null;
     await _channel?.sink.close();
     _channel = null;
   }
+
 
   @override
   Future<void> disconnect() async {

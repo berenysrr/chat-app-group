@@ -3,7 +3,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     ConversationViewSet,
     ConversationMembersView,
-    ConversationMessageHistoryView
+    ConversationMessageHistoryView,
+    ConversationMarkReadView,
 )
 
 router = DefaultRouter()
@@ -14,4 +15,5 @@ urlpatterns = [
     path('conversations/<int:conversation_id>/members/', ConversationMembersView.as_view(), name='conversation-members'),
     path('conversations/<int:conversation_id>/members/<int:user_id>/', ConversationMembersView.as_view(), name='conversation-member-detail'),
     path('conversations/<int:conversation_id>/messages/', ConversationMessageHistoryView.as_view(), name='conversation-messages'),
+    path('conversations/<int:conversation_id>/read/', ConversationMarkReadView.as_view(), name='conversation-mark-read'),
 ]

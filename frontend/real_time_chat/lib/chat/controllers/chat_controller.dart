@@ -31,6 +31,7 @@ class ChatController extends ChangeNotifier {
   final Set<int> _readMessageIds = {};
   Timer? _typingDebounce;
   Timer? _peerTypingTimeout;
+  Timer? _presencePoller;
   bool _initialized = false;
   bool _disposed = false;
   bool _isTyping = false;
@@ -55,6 +56,8 @@ class ChatController extends ChangeNotifier {
   Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
+    peerIsOnline = peer.isOnline;
+    peerLastSeen = peer.lastSeen;
     if (initialMessages != null) _messages.addAll(initialMessages!);
     if (repository != null) {
       await _loadInitialHistory();
@@ -122,8 +125,31 @@ class ChatController extends ChangeNotifier {
         notifyListeners();
       }),
     ]);
+    if (repository != null && peer.id > 0) {
+      _presencePoller = Timer.periodic(
+        const Duration(seconds: 4),
+        (_) => _refreshPeerPresence(),
+      );
+    }
     notifyListeners();
     await socket.connect();
+  }
+
+  Future<void> _refreshPeerPresence() async {
+    if (repository == null || peer.id <= 0) return;
+    try {
+      final conversation = await repository!.conversation(conversationId);
+      final refreshedPeer = conversation.members
+          .where((member) => member.id == peer.id)
+          .firstOrNull;
+      if (refreshedPeer == null) return;
+      if (peerIsOnline != refreshedPeer.isOnline ||
+          peerLastSeen != refreshedPeer.lastSeen) {
+        peerIsOnline = refreshedPeer.isOnline;
+        peerLastSeen = refreshedPeer.lastSeen;
+        _notify();
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadInitialHistory() async {
@@ -179,6 +205,7 @@ class ChatController extends ChangeNotifier {
         socket.sendMessage(
           clientMessageId: message.clientMessageId,
           content: message.content,
+          messageType: message.messageType,
         );
       }
     } on Object catch (error) {
@@ -205,7 +232,7 @@ class ChatController extends ChangeNotifier {
     _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
   }
 
-  bool send(String rawContent) {
+  bool send(String rawContent, {String messageType = 'text'}) {
     final content = rawContent.trim();
     if (content.isEmpty) return false;
     final clientId = const Uuid().v4();
@@ -216,6 +243,7 @@ class ChatController extends ChangeNotifier {
         conversationId: conversationId,
         sender: currentUser,
         content: content,
+        messageType: messageType,
         createdAt: DateTime.now(),
         status: MessageStatus.pending,
       ),
@@ -223,7 +251,11 @@ class ChatController extends ChangeNotifier {
     notifyListeners();
     _stopTyping();
     try {
-      socket.sendMessage(clientMessageId: clientId, content: content);
+      socket.sendMessage(
+        clientMessageId: clientId,
+        content: content,
+        messageType: messageType,
+      );
       return true;
     } catch (error) {
       _replaceByClientId(
@@ -251,6 +283,7 @@ class ChatController extends ChangeNotifier {
       socket.sendMessage(
         clientMessageId: message.clientMessageId,
         content: message.content,
+        messageType: message.messageType,
       );
     } catch (_) {
       _messages[index] = message.copyWith(status: MessageStatus.failed);
@@ -261,7 +294,7 @@ class ChatController extends ChangeNotifier {
 
   void openConversation() {
     _isConversationVisible = true;
-    _markUnreadMessagesRead();
+    _syncConversationReadState();
     if (unreadCount != 0) {
       unreadCount = 0;
       notifyListeners();
@@ -276,7 +309,7 @@ class ChatController extends ChangeNotifier {
   void setAppForeground(bool foreground) {
     _isAppForeground = foreground;
     if (foreground && _isConversationVisible) {
-      _markUnreadMessagesRead();
+      _syncConversationReadState();
       if (unreadCount != 0) {
         unreadCount = 0;
         notifyListeners();
@@ -311,7 +344,6 @@ class ChatController extends ChangeNotifier {
   }
 
   void _markUnreadMessagesRead() {
-    if (unreadCount == 0) return;
     final candidates = _messages
         .where(
           (message) =>
@@ -320,14 +352,20 @@ class ChatController extends ChangeNotifier {
               !_readMessageIds.contains(message.id),
         )
         .toList();
-    final start = (candidates.length - unreadCount).clamp(0, candidates.length);
-    final unreadMessages = candidates.skip(start);
-    for (final message in unreadMessages) {
+    if (candidates.isEmpty) return;
+    for (final message in candidates) {
       try {
         socket.sendMessageRead(message.id!);
         _readMessageIds.add(message.id!);
       } catch (_) {}
     }
+  }
+
+  void _syncConversationReadState() {
+    _markUnreadMessagesRead();
+    final repo = repository;
+    if (repo == null) return;
+    unawaited(repo.markConversationRead(conversationId));
   }
 
   void _onMessage(ChatMessage message) {
@@ -401,6 +439,7 @@ class ChatController extends ChangeNotifier {
     _disposed = true;
     _typingDebounce?.cancel();
     _peerTypingTimeout?.cancel();
+    _presencePoller?.cancel();
     if (_isTyping) _safeTyping(false);
     for (final subscription in _subscriptions) {
       subscription.cancel();

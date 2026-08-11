@@ -117,3 +117,57 @@ class ChatBackendTests(APITestCase):
         # Pagination sayfa başı 20 mesaj döndürür
         self.assertEqual(len(response.data['results']), 20)
         self.assertEqual(response.data['count'], 25)
+
+    def test_unread_count_uses_distinct_per_message(self):
+        conversation = Conversation.objects.create(type='group', created_by=self.user1)
+        ConversationMember.objects.create(conversation=conversation, user=self.user1, role='admin')
+        ConversationMember.objects.create(conversation=conversation, user=self.user2, role='member')
+        ConversationMember.objects.create(conversation=conversation, user=self.user3, role='member')
+
+        message = Message.objects.create(
+            conversation=conversation,
+            sender=self.user2,
+            content='hello group',
+        )
+        MessageRead.objects.create(message=message, user=self.user2)
+        MessageRead.objects.create(message=message, user=self.user3)
+
+        response = self.client.get('/api/conversations/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['results'][0]['unread_count'], 1)
+
+    def test_mark_read_endpoint_marks_all_unread_messages(self):
+        conversation = Conversation.objects.create(type='private', created_by=self.user2)
+        ConversationMember.objects.create(conversation=conversation, user=self.user1, role='member')
+        ConversationMember.objects.create(conversation=conversation, user=self.user2, role='admin')
+
+        first = Message.objects.create(
+            conversation=conversation,
+            sender=self.user2,
+            content='one',
+        )
+        second = Message.objects.create(
+            conversation=conversation,
+            sender=self.user2,
+            content='two',
+        )
+
+        before = self.client.get('/api/conversations/')
+        self.assertEqual(before.status_code, status.HTTP_200_OK)
+        self.assertEqual(before.data['results'][0]['unread_count'], 2)
+
+        response = self.client.post(f'/api/conversations/{conversation.id}/read/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['marked_count'], 2)
+        self.assertTrue(
+            MessageRead.objects.filter(message=first, user=self.user1).exists()
+        )
+        self.assertTrue(
+            MessageRead.objects.filter(message=second, user=self.user1).exists()
+        )
+
+        after = self.client.get('/api/conversations/')
+        self.assertEqual(after.status_code, status.HTTP_200_OK)
+        self.assertEqual(after.data['results'][0]['unread_count'], 0)

@@ -1,3 +1,13 @@
+import '../services/api_client.dart';
+import '../utils/avatar_url.dart';
+
+DateTime? _parseLocalDateTime(Object? value) {
+  if (value == null) return null;
+  final parsed = DateTime.tryParse(value.toString());
+  if (parsed == null) return null;
+  return parsed.isUtc ? parsed.toLocal() : parsed;
+}
+
 class UserModel {
   final int id;
   final String username;
@@ -24,17 +34,11 @@ class UserModel {
       id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
       username: json['username'] ?? '',
       email: json['email'] ?? '',
-      avatar: json['avatar'],
+      avatar: resolveAvatarUrl(json['avatar']?.toString(), baseUrl: ApiClient.baseUrl),
       isOnline: json['is_online'] ?? false,
-      lastSeen: json['last_seen'] != null
-          ? DateTime.tryParse(json['last_seen'])
-          : null,
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'])
-          : null,
-      updatedAt: json['updated_at'] != null
-          ? DateTime.tryParse(json['updated_at'])
-          : null,
+      lastSeen: _parseLocalDateTime(json['last_seen']),
+      createdAt: _parseLocalDateTime(json['created_at']),
+      updatedAt: _parseLocalDateTime(json['updated_at']),
     );
   }
 

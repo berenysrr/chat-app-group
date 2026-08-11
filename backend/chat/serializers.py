@@ -9,6 +9,11 @@ class UserMinimalSerializer(serializers.ModelSerializer):
     """
     Üyeler ve mesaj gönderenler için minimal kullanıcı bilgisi.
     """
+    is_online = serializers.SerializerMethodField()
+
+    def get_is_online(self, obj):
+        return obj.is_effectively_online()
+
     class Meta:
         model = User
         fields = ('id', 'username', 'email', 'avatar', 'is_online', 'last_seen')
@@ -73,6 +78,7 @@ class ConversationSerializer(serializers.ModelSerializer):
     """
     members = ConversationMemberSerializer(many=True, read_only=True)
     last_message = serializers.SerializerMethodField()
+    unread_count = serializers.SerializerMethodField()
 
     # Yeni sohbet oluşturma parametreleri (Write-only)
     member_ids = serializers.ListField(
@@ -90,17 +96,38 @@ class ConversationSerializer(serializers.ModelSerializer):
             'created_by',
             'members',
             'last_message',
+            'unread_count',
             'created_at',
             'updated_at',
             'member_ids'
         )
-        read_only_fields = ('id', 'created_by', 'members', 'last_message', 'created_at', 'updated_at')
+        read_only_fields = (
+            'id',
+            'created_by',
+            'members',
+            'last_message',
+            'unread_count',
+            'created_at',
+            'updated_at',
+        )
 
     def get_last_message(self, obj):
         last_msg = obj.messages.order_by('-created_at').first()
         if last_msg:
             return MessageSerializer(last_msg, context=self.context).data
         return None
+
+    def get_unread_count(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return 0
+        return obj.messages.filter(
+            is_deleted=False,
+        ).exclude(
+            sender=request.user,
+        ).exclude(
+            read_by__user=request.user,
+        ).distinct().count()
 
     def validate(self, attrs):
         conv_type = attrs.get('type', 'private')

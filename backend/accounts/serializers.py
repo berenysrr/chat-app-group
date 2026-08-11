@@ -1,10 +1,16 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
+    is_online = serializers.SerializerMethodField()
+
+    def get_is_online(self, obj):
+        return obj.is_effectively_online()
+
     class Meta:
         model = User
         fields = ('id', 'username', 'email', 'avatar', 'is_online', 'last_seen', 'created_at', 'updated_at')
@@ -35,6 +41,9 @@ class RegisterSerializer(serializers.ModelSerializer):
 class LoginSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
+        self.user.is_online = True
+        self.user.last_seen = timezone.now()
+        self.user.save(update_fields=['is_online', 'last_seen'])
         data['user'] = UserSerializer(self.user).data
         return data
 

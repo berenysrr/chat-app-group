@@ -53,9 +53,7 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
         if (_selectedUsers.length >= 4) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text(
-                'Group limit is 5 members maximum (including you)',
-              ),
+              content: const Text('Bir grupta sen dahil en fazla 5 kişi olabilir.'),
               backgroundColor: Colors.amber[800],
               behavior: SnackBarBehavior.floating,
             ),
@@ -72,7 +70,7 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
     if (groupName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter a group name'),
+          content: Text('Lütfen bir grup adı gir.'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -82,7 +80,7 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
     if (_selectedUsers.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select at least 1 member'),
+          content: Text('En az 1 üye seçmelisin.'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -150,7 +148,7 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'Create Group Chat',
+                      'Grup Sohbeti Oluştur',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -173,7 +171,7 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
             TextField(
               controller: _groupNameController,
               decoration: const InputDecoration(
-                labelText: 'Group Name',
+                labelText: 'Grup Adı',
                 prefixIcon: Icon(Icons.label_outline_rounded),
               ),
             ),
@@ -210,7 +208,7 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
               controller: _searchController,
               onChanged: _performSearch,
               decoration: InputDecoration(
-                hintText: 'Search members to add...',
+                hintText: 'Eklenecek üyeleri ara...',
                 prefixIcon: const Icon(Icons.search_rounded),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -231,8 +229,8 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
                   ? Center(
                       child: Text(
                         _searchController.text.isEmpty
-                            ? 'Type a username to search'
-                            : 'No users found',
+                            ? 'Aramak için bir kullanıcı adı yaz'
+                            : 'Kullanıcı bulunamadı',
                         style: TextStyle(
                           color: isDark
                               ? AppTheme.darkTextSecondary
@@ -252,7 +250,6 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
                         return CheckboxListTile(
                           value: isSelected,
                           title: Text(user.username),
-                          subtitle: Text(user.email),
                           secondary: CircleAvatar(
                             child: Text(user.username[0].toUpperCase()),
                           ),
@@ -269,7 +266,7 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
+                  child: const Text('Vazgeç'),
                 ),
                 const SizedBox(width: 8),
                 Container(
@@ -296,7 +293,7 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
                             ),
                           )
                         : const Text(
-                            'Create Group',
+                            'Grubu Oluştur',
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,

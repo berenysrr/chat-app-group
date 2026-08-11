@@ -1,4 +1,25 @@
+import '../../services/api_client.dart';
+import '../../utils/avatar_url.dart';
+
 enum MessageStatus { pending, sent, delivered, read, failed }
+
+int _requiredInt(Object? value, String field) {
+  if (value is int) return value;
+  final parsed = int.tryParse(value?.toString() ?? '');
+  if (parsed != null) return parsed;
+  throw FormatException('$field geçerli bir sayı değil.');
+}
+
+String _requiredString(Object? value, String field) {
+  if (value is String && value.isNotEmpty) return value;
+  throw FormatException('$field geçerli bir metin değil.');
+}
+
+Map<String, dynamic> _requiredMap(Object? value, String field) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) return value.cast<String, dynamic>();
+  throw FormatException('$field JSON nesnesi değil.');
+}
 
 class ChatUser {
   const ChatUser({
@@ -18,9 +39,12 @@ class ChatUser {
   final DateTime? lastSeen;
 
   factory ChatUser.fromJson(Map<String, dynamic> json) => ChatUser(
-    id: json['id'] as int,
-    username: json['username'] as String,
-    avatar: json['avatar'] as String?,
+    id: _requiredInt(json['id'], 'user.id'),
+    username: _requiredString(json['username'], 'user.username'),
+    avatar: resolveAvatarUrl(
+      json['avatar']?.toString(),
+      baseUrl: ApiClient.baseUrl,
+    ),
     email: json['email'] as String?,
     isOnline: json['is_online'] == true,
     lastSeen: json['last_seen'] is String
@@ -52,26 +76,39 @@ class ChatMessage {
 
   bool isMine(int currentUserId) => sender.id == currentUserId;
 
-  ChatMessage copyWith({int? id, DateTime? createdAt, MessageStatus? status}) =>
-      ChatMessage(
-        id: id ?? this.id,
-        clientMessageId: clientMessageId,
-        conversationId: conversationId,
-        sender: sender,
-        content: content,
-        messageType: messageType,
-        createdAt: createdAt ?? this.createdAt,
-        status: status ?? this.status,
-      );
+  ChatMessage copyWith({
+    int? id,
+    DateTime? createdAt,
+    MessageStatus? status,
+    String? content,
+    String? messageType,
+  }) => ChatMessage(
+    id: id ?? this.id,
+    clientMessageId: clientMessageId,
+    conversationId: conversationId,
+    sender: sender,
+    content: content ?? this.content,
+    messageType: messageType ?? this.messageType,
+    createdAt: createdAt ?? this.createdAt,
+    status: status ?? this.status,
+  );
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
-    id: json['id'] as int,
-    clientMessageId: json['client_message_id'] as String,
-    conversationId: json['conversation_id'] as int,
-    sender: ChatUser.fromJson(json['sender'] as Map<String, dynamic>),
-    content: json['content'] as String,
-    messageType: json['message_type'] as String,
-    createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+    id: _requiredInt(json['id'], 'message.id'),
+    clientMessageId: _requiredString(
+      json['client_message_id'],
+      'message.client_message_id',
+    ),
+    conversationId: _requiredInt(
+      json['conversation_id'] ?? json['conversation'],
+      'message.conversation',
+    ),
+    sender: ChatUser.fromJson(_requiredMap(json['sender'], 'message.sender')),
+    content: _requiredString(json['content'], 'message.content'),
+    messageType: (json['message_type'] as String?) ?? 'text',
+    createdAt: DateTime.parse(
+      _requiredString(json['created_at'], 'message.created_at'),
+    ).toLocal(),
   );
 }
 
@@ -106,24 +143,30 @@ class Conversation {
   factory Conversation.fromJson(Map<String, dynamic> json) {
     final rawMembers = json['members'];
     final members = rawMembers is List
-        ? rawMembers
-              .whereType<Map>()
-              .map((value) => ChatUser.fromJson(value.cast<String, dynamic>()))
-              .toList()
+        ? rawMembers.whereType<Map>().map((value) {
+            final member = value.cast<String, dynamic>();
+            // Conversation API'si üyeyi { user: {...}, role: ... } olarak
+            // döndürür; WebSocket ise kullanıcıyı doğrudan döndürür.
+            return ChatUser.fromJson(
+              _requiredMap(member['user'] ?? member, 'conversation.member'),
+            );
+          }).toList()
         : <ChatUser>[];
     final rawLastMessage = json['last_message'];
     return Conversation(
-      id: json['id'] as int,
+      id: _requiredInt(json['id'], 'conversation.id'),
       type: json['type'] == 'group'
           ? ConversationType.group
           : ConversationType.private,
       name: json['name'] as String?,
-      createdBy: json['created_by'] as int,
+      createdBy: _requiredInt(json['created_by'], 'conversation.created_by'),
       members: members,
       lastMessage: rawLastMessage is Map
           ? ChatMessage.fromJson(rawLastMessage.cast<String, dynamic>())
           : null,
-      updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
+      updatedAt: DateTime.parse(
+        _requiredString(json['updated_at'], 'conversation.updated_at'),
+      ).toLocal(),
     );
   }
 }
@@ -147,10 +190,18 @@ class MessageAcknowledgement {
   final DateTime createdAt;
   factory MessageAcknowledgement.fromJson(Map<String, dynamic> json) =>
       MessageAcknowledgement(
-        clientMessageId: json['client_message_id'] as String,
-        messageId: json['message_id'] as int,
-        conversationId: json['conversation_id'] as int,
-        createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+        clientMessageId: _requiredString(
+          json['client_message_id'],
+          'ack.client_message_id',
+        ),
+        messageId: _requiredInt(json['message_id'], 'ack.message_id'),
+        conversationId: _requiredInt(
+          json['conversation_id'],
+          'ack.conversation_id',
+        ),
+        createdAt: DateTime.parse(
+          _requiredString(json['created_at'], 'ack.created_at'),
+        ).toLocal(),
       );
 }
 
@@ -167,7 +218,7 @@ class TypingEvent {
     Map<String, dynamic> json, {
     required bool isTyping,
   }) => TypingEvent(
-    userId: json['user_id'] as int,
+    userId: _requiredInt(json['user_id'], 'typing.user_id'),
     username: json['username'] as String?,
     isTyping: isTyping,
   );
@@ -188,8 +239,8 @@ class PresenceEvent {
     Map<String, dynamic> json, {
     required bool isOnline,
   }) => PresenceEvent(
-    userId: json['user_id'] as int,
-    username: json['username'] as String,
+    userId: _requiredInt(json['user_id'], 'presence.user_id'),
+    username: _requiredString(json['username'], 'presence.username'),
     isOnline: isOnline,
     lastSeen: json['last_seen'] == null
         ? null
@@ -207,9 +258,11 @@ class ReadEvent {
   final int userId;
   final DateTime readAt;
   factory ReadEvent.fromJson(Map<String, dynamic> json) => ReadEvent(
-    messageId: json['message_id'] as int,
-    userId: json['user_id'] as int,
-    readAt: DateTime.parse(json['read_at'] as String).toLocal(),
+    messageId: _requiredInt(json['message_id'], 'read.message_id'),
+    userId: _requiredInt(json['user_id'], 'read.user_id'),
+    readAt: DateTime.parse(
+      _requiredString(json['read_at'], 'read.read_at'),
+    ).toLocal(),
   );
 }
 

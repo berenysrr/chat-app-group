@@ -26,4 +26,33 @@ void main() {
     expect(event.isOnline, isFalse);
     expect(event.lastSeen, isNotNull);
   });
+
+  test('conversation API member envelopes parse without a type error', () {
+    final conversation = Conversation.fromJson({
+      'id': 8,
+      'type': 'private',
+      'name': null,
+      'created_by': 1,
+      'members': [
+        {
+          'id': 21,
+          'role': 'admin',
+          'user': {'id': 1, 'username': 'rumeysa', 'email': 'r@e.com'},
+        },
+        {
+          'id': 22,
+          'role': 'member',
+          'user': {'id': 2, 'username': 'ece', 'email': 'e@e.com'},
+        },
+      ],
+      'last_message': null,
+      'updated_at': '2026-08-11T08:30:00Z',
+    });
+
+    expect(conversation.createdBy, 1);
+    expect(conversation.members.map((user) => user.username), [
+      'rumeysa',
+      'ece',
+    ]);
+  });
 }

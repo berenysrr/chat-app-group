@@ -6,7 +6,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 
-from .models import Conversation, ConversationMember, Message
+from .models import Conversation, ConversationMember, Message, MessageRead
 from .serializers import (
     ConversationSerializer,
     ConversationMemberSerializer,
@@ -171,3 +171,45 @@ class ConversationMessageHistoryView(generics.ListAPIView):
         if before_id:
             messages = messages.filter(id__lt=before_id)
         return messages.order_by('-created_at')
+
+
+class ConversationMarkReadView(APIView):
+    """
+    Sohbetteki tüm okunmamış mesajları mevcut kullanıcı için okundu işaretler.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, conversation_id):
+        conversation = get_object_or_404(Conversation, id=conversation_id)
+
+        if not ConversationMember.objects.filter(
+            conversation=conversation,
+            user=request.user,
+        ).exists():
+            return Response(
+                {"detail": "Bu sohbetin üyesi değilsiniz."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        unread_ids = list(
+            conversation.messages.filter(
+                is_deleted=False,
+            ).exclude(
+                sender=request.user,
+            ).exclude(
+                read_by__user=request.user,
+            ).values_list('id', flat=True).distinct()
+        )
+
+        MessageRead.objects.bulk_create(
+            [
+                MessageRead(message_id=message_id, user=request.user)
+                for message_id in unread_ids
+            ],
+            ignore_conflicts=True,
+        )
+
+        return Response(
+            {"marked_count": len(unread_ids)},
+            status=status.HTTP_200_OK,
+        )

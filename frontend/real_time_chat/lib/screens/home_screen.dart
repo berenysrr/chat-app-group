@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../models/conversation_model.dart';
 import 'conversation_list_tab.dart';
 import 'user_search_screen.dart';
 import 'profile_screen.dart';
 import 'chat_detail_screen.dart';
 import '../theme/app_theme.dart';
+import '../services/auth_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,9 +15,61 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  static const double _desktopHeaderHeight = 72;
+  final AuthService _authService = AuthService();
   int _currentIndex = 0; // 0 = Chats, 1 = Discover, 2 = Profile
   ConversationModel? _activeConversation;
+  Timer? _presenceTimer;
+  bool _sendingPresence = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startPresenceHeartbeat();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _presenceTimer?.cancel();
+    unawaited(_authService.setOffline());
+    super.dispose();
+  }
+
+  void _startPresenceHeartbeat() {
+    _sendPresenceHeartbeat();
+    _presenceTimer?.cancel();
+    _presenceTimer = Timer.periodic(
+      const Duration(seconds: 8),
+      (_) => _sendPresenceHeartbeat(),
+    );
+  }
+
+  Future<void> _sendPresenceHeartbeat() async {
+    if (_sendingPresence) return;
+    _sendingPresence = true;
+    try {
+      await _authService.heartbeatPresence();
+    } finally {
+      _sendingPresence = false;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startPresenceHeartbeat();
+      return;
+    }
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.inactive) {
+      _presenceTimer?.cancel();
+      unawaited(_authService.setOffline());
+    }
+  }
 
   void _onTabSelected(int index) {
     setState(() => _currentIndex = index);
@@ -40,6 +94,11 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
+  }
+
+  void _updateActiveConversation(ConversationModel conversation) {
+    if (_activeConversation?.id != conversation.id) return;
+    setState(() => _activeConversation = conversation);
   }
 
   @override
@@ -73,7 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
         appBar: AppBar(
           backgroundColor: AppTheme.surface(context),
           title: const Text(
-            'Messages',
+            'Sohbetler',
             style: TextStyle(fontWeight: FontWeight.w800, fontSize: 22),
           ),
           actions: [
@@ -117,17 +176,17 @@ class _HomeScreenState extends State<HomeScreen> {
             BottomNavigationBarItem(
               icon: Icon(Icons.chat_bubble_outline_rounded),
               activeIcon: Icon(Icons.chat_bubble_rounded),
-              label: 'Chats',
+              label: 'Sohbetler',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.explore_outlined),
               activeIcon: Icon(Icons.explore_rounded),
-              label: 'Discover',
+              label: 'Keşfet',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline_rounded),
               activeIcon: Icon(Icons.person_rounded),
-              label: 'Profile',
+              label: 'Profil',
             ),
           ],
         ),
@@ -195,6 +254,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ? ChatDetailScreen(
                           key: ValueKey(_activeConversation!.id),
                           conversation: _activeConversation!,
+                          showBackButton: false,
+                          onConversationChanged: _updateActiveConversation,
                         )
                       : _buildModernEmptyState(context),
                 ),
@@ -215,7 +276,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      height: 68,
+      height: _desktopHeaderHeight,
       padding: const EdgeInsets.symmetric(horizontal: 18),
       decoration: BoxDecoration(
         border: Border(
@@ -250,7 +311,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(width: 12),
               Text(
-                'Messages',
+                'Sohbetler',
                 style: TextStyle(
                   color: textPrimary,
                   fontWeight: FontWeight.w800,
@@ -268,25 +329,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 context: context,
                 index: 0,
                 icon: Icons.chat_bubble_rounded,
-                tooltip: 'Chats',
+                tooltip: 'Sohbetler',
               ),
               const SizedBox(width: 4),
               _buildNavPill(
                 context: context,
                 index: 1,
                 icon: Icons.person_add_rounded,
-                tooltip: 'Discover',
+                tooltip: 'Keşfet',
               ),
               const SizedBox(width: 4),
               _buildNavPill(
                 context: context,
                 index: 2,
                 icon: Icons.person_rounded,
-                tooltip: 'Profile',
+                tooltip: 'Profil',
               ),
               const SizedBox(width: 6),
               IconButton(
-                tooltip: isDark ? 'Light Theme' : 'Dark Theme',
+                tooltip: isDark ? 'Açık tema' : 'Koyu tema',
                 icon: Icon(
                   isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
                   color: AppTheme.primary,
@@ -375,7 +436,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 28),
               Text(
-                'Your Messages',
+                'Mesajların',
                 style: TextStyle(
                   color: textPrimary,
                   fontSize: 24,
@@ -387,7 +448,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 380),
                 child: Text(
-                  'Select a conversation from the sidebar to view messages, or start a new thread.',
+                  'Mesajları görmek için soldan bir sohbet seç ya da yeni bir konuşma başlat.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: textSecondary,
@@ -427,7 +488,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       SizedBox(width: 8),
                       Text(
-                        'Start a New Conversation',
+                        'Yeni Sohbet Başlat',
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,

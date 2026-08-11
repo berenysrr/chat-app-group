@@ -80,7 +80,11 @@ class MockWebSocketService implements WebSocketService {
   }
 
   @override
-  void sendMessage({required String clientMessageId, required String content}) {
+  void sendMessage({
+    required String clientMessageId,
+    required String content,
+    String messageType = 'text',
+  }) {
     if (failNextSend || !_connected) {
       failNextSend = false;
       throw StateError('Mock WebSocket is not connected');
@@ -108,7 +112,7 @@ class MockWebSocketService implements WebSocketService {
         ),
       ),
     );
-    if (!autoReplyEnabled) return;
+    if (messageType == 'audio' || !autoReplyEnabled) return;
     _emitTypingEvent(isTyping: true);
     final reply = _nextReply();
     _timers.add(

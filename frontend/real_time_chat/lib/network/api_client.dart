@@ -143,6 +143,17 @@ class AuthenticatedApiClient {
     if (body is Map<String, dynamic>) {
       final value = body['message'] ?? body['detail'];
       if (value is String && value.isNotEmpty) return value;
+      final fields = body.entries
+          .where((entry) => entry.value is String || entry.value is List)
+          .map((entry) {
+            final value = entry.value is List
+                ? (entry.value as List).join(' ')
+                : entry.value.toString();
+            return '${entry.key}: $value';
+          })
+          .where((value) => value.isNotEmpty)
+          .join('\n');
+      if (fields.isNotEmpty) return fields;
     }
     return 'İstek başarısız oldu ($code).';
   }

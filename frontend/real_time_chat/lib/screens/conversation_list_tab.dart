@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../models/conversation_model.dart';
+import '../models/user_model.dart';
+import '../services/auth_service.dart';
 import '../services/chat_service.dart';
 import '../theme/app_theme.dart';
+import '../chat/utils/message_content.dart';
 import 'chat_detail_screen.dart';
 import 'create_group_dialog.dart';
 
@@ -23,9 +28,17 @@ class ConversationListTab extends StatefulWidget {
 
 class _ConversationListTabState extends State<ConversationListTab> {
   final _chatService = ChatService();
+  final _authService = AuthService();
   List<ConversationModel> _conversations = [];
   List<ConversationModel> _filteredConversations = [];
+  List<UserModel> _userResults = [];
+  UserModel? _currentUser;
   bool _isLoading = true;
+  bool _isSearchingUsers = false;
+  int? _startingUserId;
+  Timer? _searchDebounce;
+  Timer? _refreshTimer;
+  int _searchRequest = 0;
   final TextEditingController _filterController = TextEditingController();
   int _activeFilterIndex = 0; // 0 = All, 1 = Unread, 2 = Groups
 
@@ -33,28 +46,52 @@ class _ConversationListTabState extends State<ConversationListTab> {
   void initState() {
     super.initState();
     _loadConversations();
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => _loadConversations(showLoading: false),
+    );
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _refreshTimer?.cancel();
     _filterController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadConversations() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadConversations({bool showLoading = true}) async {
+    if (showLoading && mounted) {
+      setState(() => _isLoading = true);
+    }
+    final profile = _currentUser ?? await _authService.getProfile();
     final list = await _chatService.getConversations();
+    list.sort((a, b) {
+      final aTime = a.lastMessage?.createdAt ?? a.updatedAt ?? a.createdAt;
+      final bTime = b.lastMessage?.createdAt ?? b.updatedAt ?? b.createdAt;
+      if (aTime == null && bTime == null) return 0;
+      if (aTime == null) return 1;
+      if (bTime == null) return -1;
+      return bTime.compareTo(aTime);
+    });
     if (mounted) {
       setState(() {
+        _currentUser = profile;
         _conversations = list;
         _filterConversations(_filterController.text);
-        _isLoading = false;
+        if (showLoading) {
+          _isLoading = false;
+        }
       });
     }
   }
 
   void _filterConversations(String query) {
     List<ConversationModel> temp = List.from(_conversations);
+
+    if (_activeFilterIndex == 1) {
+      temp = temp.where((c) => c.unreadCount > 0).toList();
+    }
 
     if (_activeFilterIndex == 2) {
       temp = temp.where((c) => c.type == 'group').toList();
@@ -68,10 +105,63 @@ class _ConversationListTabState extends State<ConversationListTab> {
         final title =
             c.name ??
             (c.members.isNotEmpty ? c.members.first.user.username : '');
-        final lastMsg = c.lastMessage?.content ?? '';
+        final lastMsg = c.lastMessage == null
+            ? ''
+            : previewTextForMessage(
+                content: c.lastMessage!.content,
+                messageType: c.lastMessage!.messageType,
+              );
         return title.toLowerCase().contains(q) ||
             lastMsg.toLowerCase().contains(q);
       }).toList();
+    }
+  }
+
+  void _onSearchChanged(String value) {
+    _filterConversations(value);
+    final query = value.trim();
+    final request = ++_searchRequest;
+    _searchDebounce?.cancel();
+    if (query.isEmpty) {
+      setState(() {
+        _userResults = [];
+        _isSearchingUsers = false;
+      });
+      return;
+    }
+    setState(() => _isSearchingUsers = true);
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
+      final users = await _authService.searchUsers(query);
+      if (!mounted || request != _searchRequest) return;
+      setState(() {
+        _userResults = users;
+        _isSearchingUsers = false;
+      });
+    });
+  }
+
+  Future<void> _startPrivateChat(UserModel user) async {
+    if (_startingUserId != null) return;
+    setState(() => _startingUserId = user.id);
+    try {
+      final conversation = await _chatService.createConversation(
+        type: 'private',
+        memberIds: [user.id],
+      );
+      if (!mounted || conversation == null) return;
+      await _loadConversations();
+      if (mounted) _openChat(conversation);
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _startingUserId = null);
     }
   }
 
@@ -132,10 +222,10 @@ class _ConversationListTabState extends State<ConversationListTab> {
             ),
             child: TextField(
               controller: _filterController,
-              onChanged: (val) => setState(() => _filterConversations(val)),
+              onChanged: (val) => _onSearchChanged(val),
               style: TextStyle(color: textPrimary, fontSize: 13.5),
               decoration: InputDecoration(
-                hintText: 'Search threads or users...',
+                hintText: 'Sohbet veya kişi ara...',
                 hintStyle: TextStyle(color: textSecondary, fontSize: 13.5),
                 prefixIcon: Icon(
                   Icons.search_rounded,
@@ -151,7 +241,7 @@ class _ConversationListTabState extends State<ConversationListTab> {
                         ),
                         onPressed: () {
                           _filterController.clear();
-                          setState(() => _filterConversations(''));
+                          _onSearchChanged('');
                         },
                       )
                     : null,
@@ -172,14 +262,14 @@ class _ConversationListTabState extends State<ConversationListTab> {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Row(
             children: [
-              _buildTechChip('All', 0),
+              _buildTechChip('Tümü', 0),
               const SizedBox(width: 6),
-              _buildTechChip('Unread', 1),
+              _buildTechChip('Okunmamış', 1),
               const SizedBox(width: 6),
-              _buildTechChip('Groups', 2),
+              _buildTechChip('Gruplar', 2),
               const Spacer(),
               IconButton(
-                tooltip: 'New Group',
+                tooltip: 'Yeni grup',
                 icon: const Icon(
                   Icons.group_add_rounded,
                   size: 18,
@@ -192,30 +282,59 @@ class _ConversationListTabState extends State<ConversationListTab> {
         ),
         const SizedBox(height: 6),
 
-        // Threads List
-        Expanded(
-          child: _conversations.isEmpty
-              ? _buildTechEmptyState(context)
-              : ListView.separated(
-                  padding: const EdgeInsets.only(bottom: 20),
-                  itemCount: _filteredConversations.length,
-                  separatorBuilder: (context, i) => Divider(
-                    height: 1,
-                    indent: 70,
-                    color: border.withValues(alpha: 0.5),
-                  ),
-                  itemBuilder: (context, index) {
-                    final item = _filteredConversations[index];
-                    final isSelected =
-                        widget.selectedConversation?.id == item.id;
-                    return _SleekConversationTile(
-                      conversation: item,
-                      isSelected: isSelected,
-                      onTap: () => _openChat(item),
-                    );
-                  },
-                ),
-        ),
+        // Sohbetler ve arama sonuçları aynı alan içinde gösterilir.
+        Expanded(child: _buildResults(context, border)),
+      ],
+    );
+  }
+
+  Widget _buildResults(BuildContext context, Color border) {
+    final hasQuery = _filterController.text.trim().isNotEmpty;
+    if (!hasQuery && _conversations.isEmpty) {
+      return _buildTechEmptyState(context);
+    }
+    if (hasQuery && _isSearchingUsers && _filteredConversations.isEmpty) {
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2.5));
+    }
+    if (hasQuery && _filteredConversations.isEmpty && _userResults.isEmpty) {
+      return _buildSearchEmptyState(
+        context,
+        icon: Icons.search_off_rounded,
+        title: 'Sonuç bulunamadı',
+        message: 'Farklı bir kullanıcı adı ya da sohbet adı deneyebilirsin.',
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 20),
+      children: [
+        for (final conversation in _filteredConversations)
+          _SleekConversationTile(
+            conversation: widget.selectedConversation?.id == conversation.id
+                ? widget.selectedConversation!
+                : conversation,
+            currentUser: _currentUser,
+            isSelected: widget.selectedConversation?.id == conversation.id,
+            onTap: () => _openChat(conversation),
+          ),
+        if (hasQuery && _userResults.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
+            child: Text(
+              'Kişiler',
+              style: TextStyle(
+                color: AppTheme.textSecondary(context),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          for (final user in _userResults)
+            _UserResultTile(
+              user: user,
+              isStarting: _startingUserId == user.id,
+              onTap: () => _startPrivateChat(user),
+            ),
+        ],
       ],
     );
   }
@@ -274,7 +393,7 @@ class _ConversationListTabState extends State<ConversationListTab> {
             const Icon(Icons.forum_outlined, size: 44, color: AppTheme.primary),
             const SizedBox(height: 14),
             Text(
-              'No active threads',
+              'Henüz aktif sohbet yok',
               style: TextStyle(
                 color: textPrimary,
                 fontSize: 16,
@@ -283,7 +402,7 @@ class _ConversationListTabState extends State<ConversationListTab> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Start a conversation by finding users in Discover.',
+              'Keşfet sekmesinden kişi bularak yeni bir konuşma başlat.',
               textAlign: TextAlign.center,
               style: TextStyle(color: textSecondary, fontSize: 13),
             ),
@@ -298,7 +417,44 @@ class _ConversationListTabState extends State<ConversationListTab> {
               ),
               onPressed: () => widget.onNavigateTab?.call(1),
               icon: const Icon(Icons.search_rounded, size: 16),
-              label: const Text('Discover People'),
+              label: const Text('Kişileri Keşfet'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchEmptyState(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String message,
+  }) {
+    final textPrimary = AppTheme.textPrimary(context);
+    final textSecondary = AppTheme.textSecondary(context);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 44, color: AppTheme.primary),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              style: TextStyle(
+                color: textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: textSecondary, fontSize: 13, height: 1.4),
             ),
           ],
         ),
@@ -307,13 +463,49 @@ class _ConversationListTabState extends State<ConversationListTab> {
   }
 }
 
+class _UserResultTile extends StatelessWidget {
+  const _UserResultTile({
+    required this.user,
+    required this.isStarting,
+    required this.onTap,
+  });
+
+  final UserModel user;
+  final bool isStarting;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    onTap: isStarting ? null : onTap,
+    leading: CircleAvatar(
+      backgroundColor: AppTheme.primary,
+      child: Text(
+        user.username.isEmpty ? '?' : user.username[0].toUpperCase(),
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    ),
+    title: Text(user.username),
+    trailing: isStarting
+        ? const SizedBox.square(
+            dimension: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : const Icon(Icons.chat_bubble_outline_rounded),
+  );
+}
+
 class _SleekConversationTile extends StatelessWidget {
   final ConversationModel conversation;
+  final UserModel? currentUser;
   final bool isSelected;
   final VoidCallback onTap;
 
   const _SleekConversationTile({
     required this.conversation,
+    required this.currentUser,
     required this.isSelected,
     required this.onTap,
   });
@@ -327,15 +519,38 @@ class _SleekConversationTile extends StatelessWidget {
     final textSecondary = AppTheme.textSecondary(context);
 
     final isGroup = conversation.type == 'group';
+    final peerMember = _resolvePeerMember();
+    final previewUser = peerMember?.user;
     final title =
         conversation.name ??
-        (conversation.members.isNotEmpty
-            ? conversation.members.first.user.username
-            : 'Chat #${conversation.id}');
-    final lastMsg = conversation.lastMessage?.content ?? 'No messages yet';
-    final timeStr = conversation.updatedAt != null
-        ? '${conversation.updatedAt!.hour.toString().padLeft(2, '0')}:${conversation.updatedAt!.minute.toString().padLeft(2, '0')}'
+        (peerMember?.user.username ??
+            previewUser?.username ??
+            'Sohbet #${conversation.id}');
+    final lastMsg = conversation.lastMessage == null
+        ? 'Henüz mesaj yok'
+        : previewTextForMessage(
+            content: conversation.lastMessage!.content,
+            messageType: conversation.lastMessage!.messageType,
+          );
+    final latestActivityAt =
+        conversation.lastMessage?.createdAt ??
+        conversation.updatedAt ??
+        conversation.createdAt;
+    final timeStr = latestActivityAt != null
+        ? '${latestActivityAt.hour.toString().padLeft(2, '0')}:${latestActivityAt.minute.toString().padLeft(2, '0')}'
         : '';
+    final isLastMessageMine =
+        currentUser != null &&
+        conversation.lastMessage?.sender?.id == currentUser!.id;
+    final effectiveUnreadCount = isSelected ? 0 : conversation.unreadCount;
+    final showReadReceipt =
+        isLastMessageMine &&
+        effectiveUnreadCount == 0 &&
+        (conversation.lastMessage?.readCount ?? 0) > 0;
+    final presenceColor =
+        (peerMember?.user.isOnline ?? previewUser?.isOnline) == true
+        ? AppTheme.onlineGreen
+        : AppTheme.offlineRed;
 
     return InkWell(
       onTap: onTap,
@@ -381,7 +596,7 @@ class _SleekConversationTile extends StatelessWidget {
                       width: 11,
                       height: 11,
                       decoration: BoxDecoration(
-                        color: AppTheme.onlineGreen,
+                        color: presenceColor,
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: AppTheme.leftPanelBg(context),
@@ -414,9 +629,26 @@ class _SleekConversationTile extends StatelessWidget {
                           ),
                         ),
                       ),
-                      Text(
-                        timeStr,
-                        style: TextStyle(color: textSecondary, fontSize: 11),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            timeStr,
+                            style: TextStyle(
+                              color: textSecondary,
+                              fontSize: 11,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          if (effectiveUnreadCount > 0)
+                            _UnreadCountBadge(count: effectiveUnreadCount)
+                          else if (showReadReceipt)
+                            const Icon(
+                              Icons.done_all_rounded,
+                              size: 15,
+                              color: AppTheme.onlineGreen,
+                            ),
+                        ],
                       ),
                     ],
                   ),
@@ -431,6 +663,53 @@ class _SleekConversationTile extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  ConversationMemberModel? _resolvePeerMember() {
+    if (conversation.type == 'group' || conversation.members.isEmpty) {
+      return null;
+    }
+
+    if (currentUser != null) {
+      for (final member in conversation.members) {
+        if (member.user.id != currentUser!.id) return member;
+      }
+      for (final member in conversation.members) {
+        if (member.user.username != currentUser!.username) return member;
+      }
+    }
+
+    return conversation.members.length > 1
+        ? conversation.members[1]
+        : conversation.members.first;
+  }
+}
+
+class _UnreadCountBadge extends StatelessWidget {
+  const _UnreadCountBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = count > 99 ? '99+' : '$count';
+    return Container(
+      constraints: const BoxConstraints(minWidth: 19, minHeight: 19),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppTheme.primary,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );
