@@ -128,7 +128,9 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         event_type = content.get("type")
         data = content.get("data", {})
 
-        if event_type == "message.send":
+        if event_type == "ping":
+            await self.send_json({"type": "pong"})
+        elif event_type == "message.send":
             await self.handle_message_send(data)
         elif event_type == "typing.start":
             await self.handle_typing_start()
@@ -138,6 +140,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             await self.handle_message_read(data)
         else:
             await self.send_json({
+
                 "type": "error",
                 "data": {
                     "code": "INVALID_EVENT",

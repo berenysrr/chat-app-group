@@ -1,12 +1,14 @@
 import os
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
-import chat.routing  # <--- 'backend.chat' Değil, sadece 'chat.routing'
-from chat.middleware import JWTAuthMiddleware  # <--- 'chat.middleware'
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings")
 
+# Django ASGI uygulamasını önceden başlat ki modeller yüklenmeden Django settings hazır olsun
 django_asgi_app = get_asgi_application()
+
+import chat.routing
+from chat.middleware import JWTAuthMiddleware
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
@@ -15,4 +17,4 @@ application = ProtocolTypeRouter({
             chat.routing.websocket_urlpatterns
         )
     ),
-})
+})
