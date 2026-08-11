@@ -8,7 +8,6 @@ import 'chat/screens/chat_list_screen.dart';
 import 'chat/screens/real_chat_home.dart';
 import 'chat/services/mock_web_socket_service.dart';
 import 'chat/services/web_socket_service.dart';
-import 'config/chat_config.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
@@ -77,17 +76,14 @@ class ChatApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mode = ChatConfig.connectionMode;
-    if (mode == ChatConnectionMode.real && socketOverride == null) {
+    if (tokenStore != null && socketOverride == null) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'Chat',
         themeMode: ThemeMode.dark,
         theme: AppTheme.dark,
         darkTheme: AppTheme.dark,
-        home: tokenStore == null
-            ? const _MissingAuthBridge()
-            : RealChatHome(tokens: tokenStore!),
+        home: RealChatHome(tokens: tokenStore!),
       );
     }
     final socket =
@@ -116,22 +112,4 @@ class ChatApp extends StatelessWidget {
       ),
     );
   }
-}
-
-class _MissingAuthBridge extends StatelessWidget {
-  const _MissingAuthBridge();
-
-  @override
-  Widget build(BuildContext context) => const Scaffold(
-    body: Center(
-      child: Padding(
-        padding: EdgeInsets.all(24),
-        child: Text(
-          'Gerçek chat modu için auth modülünün TokenStore uygulamasını '
-          'ChatApp(tokenStore: ...) üzerinden sağlaması gerekiyor.',
-          textAlign: TextAlign.center,
-        ),
-      ),
-    ),
-  );
 }

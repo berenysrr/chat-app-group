@@ -155,11 +155,13 @@ class MessageBubble extends StatelessWidget {
     required this.message,
     required this.isMine,
     required this.showTail,
+    this.senderName,
     this.onRetry,
   });
   final ChatMessage message;
   final bool isMine;
   final bool showTail;
+  final String? senderName;
   final VoidCallback? onRetry;
   @override
   Widget build(BuildContext context) {
@@ -173,127 +175,156 @@ class MessageBubble extends StatelessWidget {
       messageType: message.messageType,
       content: message.content,
     );
-    return GestureDetector(
-      onTap: message.status == MessageStatus.failed ? onRetry : null,
-      child: Align(
-        alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.sizeOf(context).width * .78,
-          ),
-          margin: EdgeInsets.only(
-            left: 12,
-            right: 12,
-            top: 2,
-            bottom: showTail ? 8 : 1,
-          ),
-          padding: const EdgeInsets.fromLTRB(12, 8, 9, 6),
-          decoration: BoxDecoration(
-            color: isMine ? null : bubbleColor,
-            gradient: isMine ? AppColors.primaryGradient : null,
-            border: isMine ? null : Border.all(color: borderColor),
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(18),
-              topRight: const Radius.circular(18),
-              bottomLeft: isMine ? const Radius.circular(18) : radius,
-              bottomRight: isMine ? radius : const Radius.circular(18),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: isMine
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
+      children: [
+        if (senderName != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 2, 14, 3),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).width * .72,
+              ),
+              child: Text(
+                senderName!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppTheme.primaryLight,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
-          child: audioMessage
-              ? ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 260),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      VoiceMessagePlayer(
-                        dataUrl: message.content,
-                        isMine: isMine,
+        GestureDetector(
+          onTap: message.status == MessageStatus.failed ? onRetry : null,
+          child: Align(
+            alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).width * .78,
+              ),
+              margin: EdgeInsets.only(
+                left: 12,
+                right: 12,
+                top: 2,
+                bottom: showTail ? 8 : 1,
+              ),
+              padding: const EdgeInsets.fromLTRB(12, 8, 9, 6),
+              decoration: BoxDecoration(
+                color: isMine ? null : bubbleColor,
+                gradient: isMine ? AppColors.primaryGradient : null,
+                border: isMine ? null : Border.all(color: borderColor),
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(18),
+                  topRight: const Radius.circular(18),
+                  bottomLeft: isMine ? const Radius.circular(18) : radius,
+                  bottomRight: isMine ? radius : const Radius.circular(18),
+                ),
+              ),
+              child: audioMessage
+                  ? ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 260),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          VoiceMessagePlayer(
+                            dataUrl: message.content,
+                            isMine: isMine,
+                          ),
+                          const SizedBox(height: 8),
+                          _MessageMeta(
+                            isMine: isMine,
+                            createdAt: message.createdAt,
+                            status: message.status,
+                            secondaryText: secondaryText,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      _MessageMeta(
-                        isMine: isMine,
-                        createdAt: message.createdAt,
-                        status: message.status,
-                        secondaryText: secondaryText,
-                      ),
-                    ],
-                  ),
-                )
-              : gifMessage == null
-              ? Wrap(
-                  alignment: WrapAlignment.end,
-                  crossAxisAlignment: WrapCrossAlignment.end,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 9, bottom: 2),
-                      child: Text(
-                        message.content,
-                        style: TextStyle(
-                          fontSize: 15.5,
-                          height: 1.3,
-                          color: isMine ? AppColors.textPrimary : incomingText,
+                    )
+                  : gifMessage == null
+                  ? Wrap(
+                      alignment: WrapAlignment.end,
+                      crossAxisAlignment: WrapCrossAlignment.end,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(right: 9, bottom: 2),
+                          child: Text(
+                            message.content,
+                            style: TextStyle(
+                              fontSize: 15.5,
+                              height: 1.3,
+                              color: isMine
+                                  ? AppColors.textPrimary
+                                  : incomingText,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    _MessageMeta(
-                      isMine: isMine,
-                      createdAt: message.createdAt,
-                      status: message.status,
-                      secondaryText: secondaryText,
-                    ),
-                  ],
-                )
-              : ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 260),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: AspectRatio(
-                          aspectRatio: 1.2,
-                          child: Image.network(
-                            gifMessage.url,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => Container(
-                              color: bubbleColor,
-                              alignment: Alignment.center,
-                              padding: const EdgeInsets.all(20),
-                              child: Text(
-                                gifMessage.label,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: incomingText,
-                                  fontWeight: FontWeight.w600,
+                        _MessageMeta(
+                          isMine: isMine,
+                          createdAt: message.createdAt,
+                          status: message.status,
+                          secondaryText: secondaryText,
+                        ),
+                      ],
+                    )
+                  : ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 260),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: AspectRatio(
+                              aspectRatio: 1.2,
+                              child: Image.network(
+                                gifMessage.url,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => Container(
+                                  color: bubbleColor,
+                                  alignment: Alignment.center,
+                                  padding: const EdgeInsets.all(20),
+                                  child: Text(
+                                    gifMessage.label,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: incomingText,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 8),
+                          Text(
+                            gifMessage.label,
+                            style: TextStyle(
+                              color: isMine
+                                  ? AppColors.textPrimary.withValues(alpha: .92)
+                                  : incomingText,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          _MessageMeta(
+                            isMine: isMine,
+                            createdAt: message.createdAt,
+                            status: message.status,
+                            secondaryText: secondaryText,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        gifMessage.label,
-                        style: TextStyle(
-                          color: isMine
-                              ? AppColors.textPrimary.withValues(alpha: .92)
-                              : incomingText,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      _MessageMeta(
-                        isMine: isMine,
-                        createdAt: message.createdAt,
-                        status: message.status,
-                        secondaryText: secondaryText,
-                      ),
-                    ],
-                  ),
-                ),
+                    ),
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 }

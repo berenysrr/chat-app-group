@@ -229,6 +229,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         value: controller,
         child: contract_chat.ChatDetailScreen(
           showBackButton: widget.showBackButton,
+          showSenderNames: widget.conversation.type == 'group',
         ),
       );
     }

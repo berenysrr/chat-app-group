@@ -9,9 +9,14 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 
 class ChatDetailScreen extends StatefulWidget {
-  const ChatDetailScreen({super.key, this.showBackButton = true});
+  const ChatDetailScreen({
+    super.key,
+    this.showBackButton = true,
+    this.showSenderNames = false,
+  });
 
   final bool showBackButton;
+  final bool showSenderNames;
 
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
@@ -223,6 +228,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                               key: ValueKey(message.clientMessageId),
                               message: message,
                               isMine: message.isMine(controller.currentUser.id),
+                              senderName: senderNameForMessage(
+                                message: message,
+                                currentUserId: controller.currentUser.id,
+                                showSenderNames: widget.showSenderNames,
+                              ),
                               showTail: showTail,
                               onRetry: message.status == MessageStatus.failed
                                   ? () => controller.retryMessage(
@@ -271,6 +281,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       ),
     );
   }
+}
+
+String? senderNameForMessage({
+  required ChatMessage message,
+  required int currentUserId,
+  required bool showSenderNames,
+}) {
+  if (!showSenderNames || message.isMine(currentUserId)) return null;
+  final username = message.sender.username.trim();
+  if (username.isNotEmpty) return username;
+  final email = message.sender.email?.trim() ?? '';
+  return email.isNotEmpty ? email : 'Kullanıcı';
 }
 
 String _subtitle(ChatController controller) {

@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 enum ChatConnectionMode { mock, real }
 
 abstract final class ChatConfig {
@@ -22,4 +20,3 @@ abstract final class ChatConfig {
 
   static const production = bool.fromEnvironment('PRODUCTION');
 }
-
