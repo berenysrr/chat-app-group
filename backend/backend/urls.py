@@ -19,14 +19,16 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from accounts.urls import auth_urlpatterns, user_urlpatterns
+from accounts.urls import auth_urlpatterns, user_urlpatterns, urlpatterns as accounts_urlpatterns
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/auth/", include(auth_urlpatterns)),
     path("api/users/", include(user_urlpatterns)),
+    path("api/accounts/", include(accounts_urlpatterns)),
     path("api/", include("chat.urls")),
 ]
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
