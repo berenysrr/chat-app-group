@@ -216,9 +216,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                                     .difference(message.createdAt)
                                     .inMinutes >
                                 3;
-                        final previous = index > 0
-                            ? controller.messages[index - 1]
-                            : null;
+                        final previous = previousVisibleMessageForIndex(
+                          controller.messages,
+                          index,
+                        );
                         final showDate =
                             previous == null ||
                             !_sameDay(previous.createdAt, message.createdAt);
@@ -232,6 +233,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                               isMine: message.isMine(controller.currentUser.id),
                               senderName: senderNameForMessage(
                                 message: message,
+                                previousMessage: previous,
                                 currentUserId: controller.currentUser.id,
                                 showSenderNames: widget.showSenderNames,
                               ),
@@ -302,12 +304,37 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
 String? senderNameForMessage({
   required ChatMessage message,
+  ChatMessage? previousMessage,
   required int currentUserId,
   required bool showSenderNames,
 }) {
-  if (!showSenderNames || message.isMine(currentUserId)) return null;
+  if (!shouldShowSenderNameForMessage(
+    message: message,
+    previousMessage: previousMessage,
+    currentUserId: currentUserId,
+    showSenderNames: showSenderNames,
+  )) {
+    return null;
+  }
   return message.senderName;
 }
+
+bool shouldShowSenderNameForMessage({
+  required ChatMessage message,
+  ChatMessage? previousMessage,
+  required int currentUserId,
+  required bool showSenderNames,
+}) {
+  if (!showSenderNames || message.isMine(currentUserId)) return false;
+  if (previousMessage == null) return true;
+  if (!_sameDay(previousMessage.createdAt, message.createdAt)) return true;
+  return previousMessage.sender.id != message.sender.id;
+}
+
+ChatMessage? previousVisibleMessageForIndex(
+  List<ChatMessage> chronologicalMessages,
+  int currentIndex,
+) => currentIndex > 0 ? chronologicalMessages[currentIndex - 1] : null;
 
 String _subtitle(ChatController controller) {
   if (controller.connection == SocketConnectionState.connecting ||

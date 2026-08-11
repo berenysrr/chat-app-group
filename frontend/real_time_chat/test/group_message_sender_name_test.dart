@@ -45,7 +45,7 @@ void main() {
     );
   });
 
-  testWidgets('message bubble renders sender inside incoming group bubble', (
+  testWidgets('message bubble renders sender outside incoming group bubble', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -72,7 +72,78 @@ void main() {
         of: find.byKey(const Key('group-message-sender-name')),
         matching: find.byType(AnimatedContainer),
       ),
-      findsOneWidget,
+      findsNothing,
+    );
+  });
+
+  test('only directly consecutive messages share a sender group', () {
+    ChatMessage message(int id, int senderId, DateTime createdAt) =>
+        ChatMessage(
+          id: id,
+          clientMessageId: 'message-$id',
+          conversationId: 3,
+          sender: ChatUser(id: senderId, username: 'User $senderId'),
+          content: 'Mesaj $id',
+          createdAt: createdAt,
+        );
+
+    final berenA = message(1, 2, DateTime(2026, 8, 11, 14));
+    final berenB = message(2, 2, DateTime(2026, 8, 11, 14, 1));
+    final mine = message(3, 1, DateTime(2026, 8, 11, 14, 2));
+    final rumeysa = message(4, 3, DateTime(2026, 8, 11, 14, 3));
+    final berenC = message(5, 2, DateTime(2026, 8, 11, 14, 4));
+
+    bool show(ChatMessage current, ChatMessage? previous) =>
+        shouldShowSenderNameForMessage(
+          message: current,
+          previousMessage: previous,
+          currentUserId: 1,
+          showSenderNames: true,
+        );
+
+    expect(show(berenA, null), isTrue);
+    expect(show(berenB, berenA), isFalse);
+    expect(show(berenC, rumeysa), isTrue);
+    expect(show(berenC, mine), isTrue);
+    expect(show(mine, berenA), isFalse);
+
+    final chronological = [berenA, berenB, rumeysa, berenC];
+    final currentIndexForFirstReverseRow = chronological.length - 1;
+    expect(
+      previousVisibleMessageForIndex(
+        chronological,
+        currentIndexForFirstReverseRow,
+      ),
+      same(rumeysa),
+    );
+  });
+
+  test('date separator starts a new sender group', () {
+    final yesterday = ChatMessage(
+      id: 10,
+      clientMessageId: 'yesterday',
+      conversationId: 3,
+      sender: const ChatUser(id: 2, username: 'Beren'),
+      content: 'Dün',
+      createdAt: DateTime(2026, 8, 10, 23, 59),
+    );
+    final today = ChatMessage(
+      id: 11,
+      clientMessageId: 'today',
+      conversationId: 3,
+      sender: const ChatUser(id: 2, username: 'Beren'),
+      content: 'Bugün',
+      createdAt: DateTime(2026, 8, 11, 0, 1),
+    );
+
+    expect(
+      shouldShowSenderNameForMessage(
+        message: today,
+        previousMessage: yesterday,
+        currentUserId: 1,
+        showSenderNames: true,
+      ),
+      isTrue,
     );
   });
 
