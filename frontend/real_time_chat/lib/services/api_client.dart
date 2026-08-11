@@ -6,7 +6,8 @@ class ApiClient {
   factory ApiClient() => _instance;
 
   late final Dio dio;
-  static const String baseUrl = 'http://localhost:8000';
+  static const String baseUrl = 'https://chat-backend-j0z0.onrender.com';
+
 
   // Callback to notify app on unauthorized logout
   void Function()? onUnauthorized;
