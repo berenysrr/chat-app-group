@@ -2,6 +2,9 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
 from rest_framework import status
 from chat.models import Conversation, ConversationMember, Message, MessageRead
+from chat.serializers import MessageSerializer
+from chat.consumers import save_message_to_db
+from asgiref.sync import async_to_sync
 
 User = get_user_model()
 
@@ -117,6 +120,53 @@ class ChatBackendTests(APITestCase):
         # Pagination sayfa başı 20 mesaj döndürür
         self.assertEqual(len(response.data['results']), 20)
         self.assertEqual(response.data['count'], 25)
+
+    def test_reply_is_stored_and_serialized_as_a_small_summary(self):
+        conversation = Conversation.objects.create(type='private', created_by=self.user1)
+        ConversationMember.objects.create(conversation=conversation, user=self.user1, role='admin')
+        ConversationMember.objects.create(conversation=conversation, user=self.user2, role='member')
+        original = Message.objects.create(
+            conversation=conversation,
+            sender=self.user2,
+            content='Yarın geliyor musun?',
+        )
+
+        reply, created = async_to_sync(save_message_to_db)(
+            self.user1,
+            conversation.id,
+            'Evet',
+            'reply-client-id',
+            'text',
+            original.id,
+        )
+
+        self.assertTrue(created)
+        self.assertEqual(reply.reply_to_id, original.id)
+        payload = MessageSerializer(reply, context={'request': None}).data
+        self.assertEqual(payload['reply_to']['id'], original.id)
+        self.assertEqual(payload['reply_to']['sender']['username'], 'user2')
+        self.assertEqual(payload['reply_to']['content'], 'Yarın geliyor musun?')
+
+    def test_reply_cannot_reference_another_conversation(self):
+        conversation = Conversation.objects.create(type='private', created_by=self.user1)
+        other = Conversation.objects.create(type='private', created_by=self.user1)
+        original = Message.objects.create(
+            conversation=other,
+            sender=self.user2,
+            content='Başka oda',
+        )
+
+        reply, created = async_to_sync(save_message_to_db)(
+            self.user1,
+            conversation.id,
+            'Olmamalı',
+            'invalid-reply-client-id',
+            'text',
+            original.id,
+        )
+
+        self.assertIsNone(reply)
+        self.assertFalse(created)
 
     def test_unread_count_uses_distinct_per_message(self):
         conversation = Conversation.objects.create(type='group', created_by=self.user1)

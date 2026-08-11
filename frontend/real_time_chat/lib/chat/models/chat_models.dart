@@ -68,6 +68,44 @@ class ChatUser {
   );
 }
 
+class ReplyMessageInfo {
+  const ReplyMessageInfo({
+    required this.id,
+    required this.sender,
+    required this.content,
+    required this.messageType,
+  });
+
+  final int id;
+  final ChatUser sender;
+  final String content;
+  final String messageType;
+
+  String get senderName {
+    final username = sender.username.trim();
+    if (username.isNotEmpty) return username;
+    final email = sender.email?.trim() ?? '';
+    return email.isNotEmpty ? email : 'Kullanıcı';
+  }
+
+  factory ReplyMessageInfo.fromJson(Map<String, dynamic> json) =>
+      ReplyMessageInfo(
+        id: _requiredInt(json['id'], 'reply_to.id'),
+        sender: ChatUser.fromJson(
+          _requiredMap(json['sender'], 'reply_to.sender'),
+        ),
+        content: json['content']?.toString() ?? '',
+        messageType: json['message_type']?.toString() ?? 'text',
+      );
+
+  factory ReplyMessageInfo.fromMessage(ChatMessage message) => ReplyMessageInfo(
+    id: message.id!,
+    sender: message.sender,
+    content: message.content,
+    messageType: message.messageType,
+  );
+}
+
 class ChatMessage {
   const ChatMessage({
     required this.id,
@@ -78,6 +116,7 @@ class ChatMessage {
     required this.createdAt,
     this.messageType = 'text',
     this.status = MessageStatus.delivered,
+    this.replyTo,
   });
 
   final int? id;
@@ -88,6 +127,7 @@ class ChatMessage {
   final String messageType;
   final DateTime createdAt;
   final MessageStatus status;
+  final ReplyMessageInfo? replyTo;
 
   bool isMine(int currentUserId) => sender.id == currentUserId;
 
@@ -104,6 +144,7 @@ class ChatMessage {
     MessageStatus? status,
     String? content,
     String? messageType,
+    ReplyMessageInfo? replyTo,
   }) => ChatMessage(
     id: id ?? this.id,
     clientMessageId: clientMessageId,
@@ -113,6 +154,7 @@ class ChatMessage {
     messageType: messageType ?? this.messageType,
     createdAt: createdAt ?? this.createdAt,
     status: status ?? this.status,
+    replyTo: replyTo ?? this.replyTo,
   );
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
@@ -132,6 +174,11 @@ class ChatMessage {
       _requiredString(json['created_at'], 'message.created_at'),
     ).toLocal(),
     status: _statusFromJson(json),
+    replyTo: json['reply_to'] is Map
+        ? ReplyMessageInfo.fromJson(
+            (json['reply_to'] as Map).cast<String, dynamic>(),
+          )
+        : null,
   );
 
   static MessageStatus _statusFromJson(Map<String, dynamic> json) {

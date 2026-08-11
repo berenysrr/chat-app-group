@@ -44,6 +44,7 @@ class MessageSerializer(serializers.ModelSerializer):
     sender = UserMinimalSerializer(read_only=True)
     read_count = serializers.SerializerMethodField()
     is_read_by_me = serializers.SerializerMethodField()
+    reply_to = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
@@ -51,6 +52,7 @@ class MessageSerializer(serializers.ModelSerializer):
             'id',
             'conversation',
             'sender',
+            'reply_to',
             'client_message_id',
             'content',
             'message_type',
@@ -70,6 +72,17 @@ class MessageSerializer(serializers.ModelSerializer):
         if not request or not request.user.is_authenticated:
             return False
         return obj.read_by.filter(user=request.user).exists()
+
+    def get_reply_to(self, obj):
+        replied = obj.reply_to
+        if replied is None:
+            return None
+        return {
+            'id': replied.id,
+            'sender': UserMinimalSerializer(replied.sender).data,
+            'content': replied.content,
+            'message_type': replied.message_type,
+        }
 
 
 class ConversationSerializer(serializers.ModelSerializer):

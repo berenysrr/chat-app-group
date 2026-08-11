@@ -43,6 +43,7 @@ abstract interface class WebSocketService {
     required String clientMessageId,
     required String content,
     String messageType = 'text',
+    int? replyToMessageId,
   });
   void sendTypingStart();
   void sendTypingStop();
@@ -190,7 +191,6 @@ class ContractWebSocketService implements WebSocketService {
         onDone: _handleDone,
         cancelOnError: true,
       );
-
     } catch (error, stackTrace) {
       _reportError('WebSocket bağlantısı kurulamadı.', stackTrace);
       _scheduleReconnect();
@@ -297,6 +297,7 @@ class ContractWebSocketService implements WebSocketService {
     required String clientMessageId,
     required String content,
     String messageType = 'text',
+    int? replyToMessageId,
   }) {
     final clean = content.trim();
     if (clean.isEmpty) throw ArgumentError('Mesaj boş olamaz.');
@@ -304,6 +305,7 @@ class ContractWebSocketService implements WebSocketService {
       'client_message_id': clientMessageId,
       'content': clean,
       'message_type': messageType,
+      'reply_to': ?replyToMessageId,
     });
   }
 
@@ -325,7 +327,6 @@ class ContractWebSocketService implements WebSocketService {
     await _channel?.sink.close();
     _channel = null;
   }
-
 
   @override
   Future<void> disconnect() async {

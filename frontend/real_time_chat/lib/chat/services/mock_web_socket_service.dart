@@ -31,6 +31,7 @@ class MockWebSocketService implements WebSocketService {
   int typingStartCalls = 0;
   int typingStopCalls = 0;
   int readCalls = 0;
+  int? lastReplyToMessageId;
   bool _connected = false;
   bool _disposed = false;
   final List<Timer> _timers = [];
@@ -84,11 +85,13 @@ class MockWebSocketService implements WebSocketService {
     required String clientMessageId,
     required String content,
     String messageType = 'text',
+    int? replyToMessageId,
   }) {
     if (failNextSend || !_connected) {
       failNextSend = false;
       throw StateError('Mock WebSocket is not connected');
     }
+    lastReplyToMessageId = replyToMessageId;
     final id = _nextId++;
     final now = DateTime.now();
     _timers.add(

@@ -26,13 +26,34 @@ def save_message_to_db(
     content,
     client_message_id,
     message_type='text',
+    reply_to_id=None,
 ):
     """Gelen mesajı PostgreSQL/SQLite veritabanına kaydeder."""
+    existing = Message.objects.filter(
+        conversation_id=conversation_id,
+        sender=user,
+        client_message_id=client_message_id,
+    ).first()
+    if existing is not None:
+        return existing, False
+    reply_to = None
+    if reply_to_id is not None:
+        reply_to = Message.objects.filter(
+            id=reply_to_id,
+            conversation_id=conversation_id,
+            is_deleted=False,
+        ).select_related('sender').first()
+        if reply_to is None:
+            return None, False
     message, created = Message.objects.get_or_create(
         conversation_id=conversation_id,
         sender=user,
         client_message_id=client_message_id,
-        defaults={'content': content, 'message_type': message_type},
+        defaults={
+            'content': content,
+            'message_type': message_type,
+            'reply_to': reply_to,
+        },
     )
     if created:
         Conversation.objects.filter(id=conversation_id).update(
@@ -49,6 +70,24 @@ def save_message_read_to_db(user, message_id):
         user=user
     )
     return obj.read_at.isoformat()
+
+
+@database_sync_to_async
+def get_reply_payload(message_id):
+    message = Message.objects.select_related('reply_to__sender').get(id=message_id)
+    replied = message.reply_to
+    if replied is None:
+        return None
+    return {
+        "id": replied.id,
+        "sender": {
+            "id": replied.sender.id,
+            "username": replied.sender.username,
+            "avatar": replied.sender.avatar.url if replied.sender.avatar else None,
+        },
+        "content": replied.content,
+        "message_type": replied.message_type,
+    }
 
 
 @database_sync_to_async
@@ -155,6 +194,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         content = raw_content.strip() if isinstance(raw_content, str) else ""
         client_message_id = data.get("client_message_id")
         message_type = str(data.get("message_type") or 'text').strip().lower()
+        reply_to_id = data.get("reply_to")
 
         if not client_message_id:
             await self.send_json({"type": "error", "data": {"code": "CLIENT_MESSAGE_ID_REQUIRED", "message": "client_message_id is required."}})
@@ -181,6 +221,21 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 "data": {"code": "MESSAGE_EMPTY", "message": "Message content cannot be empty."}
             })
             return
+
+        if reply_to_id is not None:
+            try:
+                reply_to_id = int(reply_to_id)
+                if reply_to_id <= 0:
+                    raise ValueError
+            except (TypeError, ValueError):
+                await self.send_json({
+                    "type": "error",
+                    "data": {
+                        "code": "REPLY_TO_INVALID",
+                        "message": "reply_to must be a positive message id.",
+                    }
+                })
+                return
 
         if message_type == 'audio':
             if not content.startswith('data:audio/'):
@@ -209,7 +264,18 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             content,
             client_message_id,
             message_type,
+            reply_to_id,
         )
+
+        if msg is None:
+            await self.send_json({
+                "type": "error",
+                "data": {
+                    "code": "REPLY_TO_NOT_FOUND",
+                    "message": "Reply message was not found in this conversation.",
+                }
+            })
+            return
 
         await self.send_json({
             "type": "message.ack",
@@ -222,6 +288,8 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         })
         if not created:
             return
+
+        reply_payload = await get_reply_payload(msg.id)
 
         # GERÇEK VERİTABANI MESAJ BİLGİSİ İLE ROOM'A YAYINLA
         await self.channel_layer.group_send(
@@ -237,6 +305,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                         "username": self.user.username,
                         "avatar": self.user.avatar.url if self.user.avatar else None,
                     },
+                    "reply_to": reply_payload,
                     "content": msg.content,
                     "message_type": msg.message_type,
                     "created_at": msg.created_at.isoformat(),
