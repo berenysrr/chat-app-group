@@ -43,6 +43,8 @@ class MessageSerializer(serializers.ModelSerializer):
     """
     sender = UserMinimalSerializer(read_only=True)
     read_count = serializers.SerializerMethodField()
+    recipient_count = serializers.SerializerMethodField()
+    is_read_by_all = serializers.SerializerMethodField()
     is_read_by_me = serializers.SerializerMethodField()
     reply_to = serializers.SerializerMethodField()
 
@@ -60,12 +62,23 @@ class MessageSerializer(serializers.ModelSerializer):
             'updated_at',
             'is_deleted',
             'read_count',
+            'recipient_count',
+            'is_read_by_all',
             'is_read_by_me'
         )
         read_only_fields = fields
 
     def get_read_count(self, obj):
-        return obj.read_by.count()
+        return obj.read_by.exclude(user_id=obj.sender_id).filter(
+            user__conversations__conversation_id=obj.conversation_id,
+        ).values('user_id').distinct().count()
+
+    def get_recipient_count(self, obj):
+        return obj.conversation.members.exclude(user_id=obj.sender_id).count()
+
+    def get_is_read_by_all(self, obj):
+        recipient_count = self.get_recipient_count(obj)
+        return recipient_count > 0 and self.get_read_count(obj) >= recipient_count
 
     def get_is_read_by_me(self, obj):
         request = self.context.get('request')

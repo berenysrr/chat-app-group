@@ -212,6 +212,7 @@ class _ConversationListTabState extends State<ConversationListTab> {
       conversation,
       messageId: event.messageId,
       currentUserId: currentUser.id,
+      isReadByAll: event.isReadByAll,
     );
     if (identical(updated, conversation)) return;
     setState(() {
@@ -685,7 +686,7 @@ class _SleekConversationTile extends StatelessWidget {
         currentUser != null &&
         conversation.lastMessage?.sender?.id == currentUser!.id;
     final effectiveUnreadCount = isSelected ? 0 : conversation.unreadCount;
-    final lastMessageStatus = (conversation.lastMessage?.readCount ?? 0) > 0
+    final lastMessageStatus = conversation.lastMessage?.isReadByAll == true
         ? MessageStatus.read
         : MessageStatus.delivered;
     final presenceColor =

@@ -429,6 +429,7 @@ class ChatController extends ChangeNotifier {
   }
 
   void _onRead(ReadEvent event) {
+    if (!event.isReadByAll) return;
     final index = _messages.indexWhere(
       (message) =>
           message.id == event.messageId && message.isMine(currentUser.id),

@@ -158,7 +158,10 @@ Server:
   "data": {
     "message_id": 15,
     "user_id": 2,
-    "read_at": "2026-08-10T10:35:00Z"
+    "read_at": "2026-08-10T10:35:00Z",
+    "read_count": 1,
+    "recipient_count": 2,
+    "is_read_by_all": false
   }
 }
 ```
@@ -250,10 +253,18 @@ Frontend pending mesajı bu event ile confirmed hale getirir.
   "data": {
     "message_id": 15,
     "user_id": 2,
-    "read_at": "2026-08-10T10:35:00Z"
+    "read_at": "2026-08-10T10:35:00Z",
+    "read_count": 2,
+    "recipient_count": 2,
+    "is_read_by_all": true
   }
 }
 ```
+
+Frontend, okunma tikini yalnizca `is_read_by_all` degeri `true` oldugunda
+mavi gosterir. Grup sohbetinde bu alan ancak `read_count` degeri gonderen
+haric tum alicilari ifade eden `recipient_count` degerine ulastiginda `true`
+olur.
 
 ---
 

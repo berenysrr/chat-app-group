@@ -111,7 +111,14 @@ class MockWebSocketService implements WebSocketService {
       Timer(
         const Duration(milliseconds: 900),
         () => _reads.add(
-          ReadEvent(messageId: id, userId: peerId, readAt: DateTime.now()),
+          ReadEvent(
+            messageId: id,
+            userId: peerId,
+            readAt: DateTime.now(),
+            readCount: 1,
+            recipientCount: 1,
+            isReadByAll: true,
+          ),
         ),
       ),
     );
@@ -185,6 +192,22 @@ class MockWebSocketService implements WebSocketService {
 
   void emitMessage(ChatMessage message) => _messages.add(message);
 
+  void emitRead({
+    required int messageId,
+    required int readCount,
+    required int recipientCount,
+    int? userId,
+  }) => _reads.add(
+    ReadEvent(
+      messageId: messageId,
+      userId: userId ?? peerId,
+      readAt: DateTime.now(),
+      readCount: readCount,
+      recipientCount: recipientCount,
+      isReadByAll: recipientCount > 0 && readCount >= recipientCount,
+    ),
+  );
+
   void emitTyping(bool typing, {int? userId}) => _typing.add(
     TypingEvent(
       userId: userId ?? peerId,
@@ -205,6 +228,9 @@ class MockWebSocketService implements WebSocketService {
         messageId: messageId,
         userId: currentUserId,
         readAt: DateTime.now(),
+        readCount: 1,
+        recipientCount: 1,
+        isReadByAll: true,
       ),
     );
   }
