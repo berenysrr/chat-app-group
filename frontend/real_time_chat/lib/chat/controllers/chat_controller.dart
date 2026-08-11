@@ -97,7 +97,10 @@ class ChatController extends ChangeNotifier {
       socket.listenAcknowledgement().listen(_onAcknowledgement),
       socket.listenMessageRead().listen(_onRead),
       socket.listenTyping().listen((event) {
-        if (event.userId != peer.id) return;
+        if (event.userId == currentUser.id ||
+            (peer.id > 0 && event.userId != peer.id)) {
+          return;
+        }
         _peerTypingTimeout?.cancel();
         peerIsTyping = event.isTyping;
         if (event.isTyping) {
@@ -116,6 +119,8 @@ class ChatController extends ChangeNotifier {
       }),
       socket.listenOffline().listen((event) {
         if (event.userId != peer.id) return;
+        _peerTypingTimeout?.cancel();
+        peerIsTyping = false;
         peerIsOnline = false;
         peerLastSeen = event.lastSeen;
         notifyListeners();

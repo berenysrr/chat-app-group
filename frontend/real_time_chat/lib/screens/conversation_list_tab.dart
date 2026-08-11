@@ -44,7 +44,10 @@ class _ConversationListTabState extends State<ConversationListTab> {
   Timer? _searchDebounce;
   Timer? _refreshTimer;
   final Map<int, ContractWebSocketService> _receiptSockets = {};
-  final Map<int, StreamSubscription<ReadEvent>> _receiptSubscriptions = {};
+  final Map<int, List<StreamSubscription<dynamic>>> _socketSubscriptions = {};
+  final Map<int, bool> _liveOnline = {};
+  final Map<int, bool> _liveTyping = {};
+  final Map<int, Timer> _typingTimeouts = {};
   int _searchRequest = 0;
   final TextEditingController _filterController = TextEditingController();
   int _activeFilterIndex = 0; // 0 = All, 1 = Unread, 2 = Groups
@@ -63,8 +66,13 @@ class _ConversationListTabState extends State<ConversationListTab> {
   void dispose() {
     _searchDebounce?.cancel();
     _refreshTimer?.cancel();
-    for (final subscription in _receiptSubscriptions.values) {
-      unawaited(subscription.cancel());
+    for (final subscriptions in _socketSubscriptions.values) {
+      for (final subscription in subscriptions) {
+        unawaited(subscription.cancel());
+      }
+    }
+    for (final timer in _typingTimeouts.values) {
+      timer.cancel();
     }
     for (final socket in _receiptSockets.values) {
       unawaited(socket.dispose());
@@ -106,7 +114,12 @@ class _ConversationListTabState extends State<ConversationListTab> {
         .where((id) => !activeIds.contains(id))
         .toList();
     for (final id in removedIds) {
-      unawaited(_receiptSubscriptions.remove(id)?.cancel());
+      for (final subscription in _socketSubscriptions.remove(id) ?? const []) {
+        unawaited(subscription.cancel());
+      }
+      _typingTimeouts.remove(id)?.cancel();
+      _liveOnline.remove(id);
+      _liveTyping.remove(id);
       unawaited(_receiptSockets.remove(id)?.dispose());
     }
     for (final conversation in conversations) {
@@ -118,10 +131,72 @@ class _ConversationListTabState extends State<ConversationListTab> {
         accessTokenProvider: SecureTokenStore().readAccessToken,
       );
       _receiptSockets[conversation.id] = socket;
-      _receiptSubscriptions[conversation.id] = socket
-          .listenMessageRead()
-          .listen((event) => _applyReadReceipt(conversation.id, event));
+      _socketSubscriptions[conversation.id] = [
+        socket.connectionState.listen(
+          (state) => _applyConnectionState(conversation.id, state),
+        ),
+        socket.listenMessageRead().listen(
+          (event) => _applyReadReceipt(conversation.id, event),
+        ),
+        socket.listenOnline().listen(
+          (event) => _applyPresence(conversation, event),
+        ),
+        socket.listenOffline().listen(
+          (event) => _applyPresence(conversation, event),
+        ),
+        socket.listenTyping().listen(
+          (event) => _applyTyping(conversation, event),
+        ),
+      ];
       unawaited(socket.connect());
+    }
+  }
+
+  void _applyConnectionState(int conversationId, SocketConnectionState state) {
+    if (state != SocketConnectionState.connected || !mounted) return;
+    _typingTimeouts.remove(conversationId)?.cancel();
+    setState(() {
+      _liveOnline.remove(conversationId);
+      _liveTyping.remove(conversationId);
+    });
+  }
+
+  int? _peerIdFor(ConversationModel conversation) {
+    final currentUser = _currentUser;
+    if (currentUser == null || conversation.type == 'group') return null;
+    for (final member in conversation.members) {
+      if (member.user.id != currentUser.id) return member.user.id;
+    }
+    return null;
+  }
+
+  void _applyPresence(ConversationModel conversation, PresenceEvent event) {
+    if (event.userId != _peerIdFor(conversation) || !mounted) return;
+    setState(() {
+      _liveOnline[conversation.id] = event.isOnline;
+      if (!event.isOnline) {
+        _typingTimeouts.remove(conversation.id)?.cancel();
+        _liveTyping[conversation.id] = false;
+      }
+    });
+  }
+
+  void _applyTyping(ConversationModel conversation, TypingEvent event) {
+    final currentUser = _currentUser;
+    final matchesConversation = conversation.type == 'group'
+        ? currentUser != null &&
+              event.userId != currentUser.id &&
+              conversation.members.any(
+                (member) => member.user.id == event.userId,
+              )
+        : event.userId == _peerIdFor(conversation);
+    if (!matchesConversation || !mounted) return;
+    _typingTimeouts.remove(conversation.id)?.cancel();
+    setState(() => _liveTyping[conversation.id] = event.isTyping);
+    if (event.isTyping) {
+      _typingTimeouts[conversation.id] = Timer(const Duration(seconds: 5), () {
+        if (mounted) setState(() => _liveTyping[conversation.id] = false);
+      });
     }
   }
 
@@ -372,6 +447,8 @@ class _ConversationListTabState extends State<ConversationListTab> {
                 ? widget.selectedConversation!
                 : conversation,
             currentUser: _currentUser,
+            liveOnline: _liveOnline[conversation.id],
+            liveTyping: _liveTyping[conversation.id] ?? false,
             isSelected: widget.selectedConversation?.id == conversation.id,
             onTap: () => _openChat(conversation),
           ),
@@ -560,11 +637,15 @@ class _SleekConversationTile extends StatelessWidget {
   final ConversationModel conversation;
   final UserModel? currentUser;
   final bool isSelected;
+  final bool? liveOnline;
+  final bool liveTyping;
   final VoidCallback onTap;
 
   const _SleekConversationTile({
     required this.conversation,
     required this.currentUser,
+    this.liveOnline,
+    this.liveTyping = false,
     required this.isSelected,
     required this.onTap,
   });
@@ -585,7 +666,9 @@ class _SleekConversationTile extends StatelessWidget {
         (peerMember?.user.username ??
             previewUser?.username ??
             'Sohbet #${conversation.id}');
-    final lastMsg = conversation.lastMessage == null
+    final lastMsg = liveTyping
+        ? 'yazıyor…'
+        : conversation.lastMessage == null
         ? 'Henüz mesaj yok'
         : previewTextForMessage(
             content: conversation.lastMessage!.content,
@@ -606,7 +689,8 @@ class _SleekConversationTile extends StatelessWidget {
         ? MessageStatus.read
         : MessageStatus.delivered;
     final presenceColor =
-        (peerMember?.user.isOnline ?? previewUser?.isOnline) == true
+        (liveOnline ?? peerMember?.user.isOnline ?? previewUser?.isOnline) ==
+            true
         ? AppTheme.onlineGreen
         : AppTheme.offlineRed;
 

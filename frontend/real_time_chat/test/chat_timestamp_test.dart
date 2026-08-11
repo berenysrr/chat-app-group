@@ -24,4 +24,20 @@ void main() {
       '02.07.2026',
     );
   });
+
+  test('last seen bugün dün ve eski tarihleri saat ile biçimlendirir', () {
+    final now = DateTime(2026, 8, 10, 15, 30);
+    expect(
+      formatLastSeen(DateTime(2026, 8, 10, 14, 9), relativeTo: now),
+      'son görülme bugün 14:09',
+    );
+    expect(
+      formatLastSeen(DateTime(2026, 8, 9, 22, 31), relativeTo: now),
+      'son görülme dün 22:31',
+    );
+    expect(
+      formatLastSeen(DateTime(2026, 8, 7, 18, 42), relativeTo: now),
+      'son görülme 07.08.2026 18:42',
+    );
+  });
 }

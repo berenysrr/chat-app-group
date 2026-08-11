@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../controllers/chat_controller.dart';
 import '../models/chat_models.dart';
 import '../services/web_socket_service.dart';
+import '../utils/chat_timestamp.dart';
 import '../widgets/chat_widgets.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
@@ -300,7 +301,7 @@ String _subtitle(ChatController controller) {
   if (controller.peerIsTyping) return 'yazıyor…';
   if (controller.peerIsOnline) return 'çevrimiçi';
   if (controller.peerLastSeen != null) {
-    return 'son görülme ${controller.peerLastSeen!.hour.toString().padLeft(2, '0')}:${controller.peerLastSeen!.minute.toString().padLeft(2, '0')}';
+    return formatLastSeen(controller.peerLastSeen!);
   }
   return 'çevrimdışı';
 }

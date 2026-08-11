@@ -119,6 +119,57 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('offline event clears typing and stores local last seen', (
+    tester,
+  ) async {
+    final socket = MockWebSocketService();
+    final controller = buildController(socket);
+    final initialization = controller.initialize();
+    await tester.pump(const Duration(milliseconds: 250));
+    await initialization;
+    socket.emitTyping(true);
+    await tester.pump();
+    expect(controller.peerIsTyping, isTrue);
+
+    socket.emitPresence(
+      userId: peer.id,
+      username: peer.username,
+      online: false,
+    );
+    await tester.pump();
+
+    expect(controller.peerIsTyping, isFalse);
+    expect(controller.peerIsOnline, isFalse);
+    expect(controller.peerLastSeen, isNotNull);
+    expect(controller.peerLastSeen!.isUtc, isFalse);
+    controller.dispose();
+  });
+
+  testWidgets('group typing accepts another user on the conversation socket', (
+    tester,
+  ) async {
+    final socket = MockWebSocketService();
+    final controller = ChatController(
+      socket: socket,
+      currentUser: me,
+      peer: const ChatUser(id: -3, username: 'Proje Grubu'),
+      conversationId: 3,
+      initialMessages: const [],
+    );
+    final initialization = controller.initialize();
+    await tester.pump(const Duration(milliseconds: 250));
+    await initialization;
+
+    socket.emitTyping(true, userId: 4);
+    await tester.pump();
+    expect(controller.peerIsTyping, isTrue);
+
+    socket.emitTyping(false, userId: 4);
+    await tester.pump();
+    expect(controller.peerIsTyping, isFalse);
+    controller.dispose();
+  });
+
   test(
     'mock replies use contract models and a deterministic sequence',
     () async {
