@@ -76,6 +76,13 @@ class ChatMessage {
 
   bool isMine(int currentUserId) => sender.id == currentUserId;
 
+  String get senderName {
+    final username = sender.username.trim();
+    if (username.isNotEmpty) return username;
+    final email = sender.email?.trim() ?? '';
+    return email.isNotEmpty ? email : 'Kullanıcı';
+  }
+
   ChatMessage copyWith({
     int? id,
     DateTime? createdAt,
