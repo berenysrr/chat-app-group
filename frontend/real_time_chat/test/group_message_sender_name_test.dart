@@ -87,4 +87,27 @@ void main() {
       'ayse@example.com',
     );
   });
+
+  test('REST and WebSocket payload sender is preserved by shared parser', () {
+    ChatMessage parse(int id, String username) => ChatMessage.fromJson({
+      'id': id,
+      'client_message_id': 'server-$id',
+      'conversation_id': 3,
+      'sender': {
+        'id': id,
+        'username': username,
+        'email': '$username@example.com',
+        'avatar': null,
+      },
+      'content': 'Mesaj $id',
+      'message_type': 'text',
+      'created_at': '2026-08-11T12:15:00Z',
+    });
+
+    final beren = parse(2, 'Beren');
+    final rumeysa = parse(3, 'Rümeysa');
+
+    expect(beren.senderName, 'Beren');
+    expect(rumeysa.senderName, 'Rümeysa');
+  });
 }

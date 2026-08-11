@@ -225,8 +225,11 @@ class ChatController extends ChangeNotifier {
       );
       if (index < 0) {
         _messages.add(message);
-      } else if (_messages[index].status == MessageStatus.pending) {
-        _messages[index] = message;
+      } else {
+        final current = _messages[index];
+        _messages[index] = message.copyWith(
+          status: latestMessageStatus(current.status, message.status),
+        );
       }
     }
     _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
@@ -256,6 +259,11 @@ class ChatController extends ChangeNotifier {
         content: content,
         messageType: messageType,
       );
+      _replaceByClientId(
+        clientId,
+        (message) => message.copyWith(status: MessageStatus.sent),
+      );
+      notifyListeners();
       return true;
     } catch (error) {
       _replaceByClientId(
@@ -285,6 +293,8 @@ class ChatController extends ChangeNotifier {
         content: message.content,
         messageType: message.messageType,
       );
+      _messages[index] = _messages[index].copyWith(status: MessageStatus.sent);
+      notifyListeners();
     } catch (_) {
       _messages[index] = message.copyWith(status: MessageStatus.failed);
       errorMessage = 'Mesaj yeniden gönderilemedi.';
@@ -409,8 +419,10 @@ class ChatController extends ChangeNotifier {
           message.id == event.messageId && message.isMine(currentUser.id),
     );
     if (index >= 0) {
-      if (_messages[index].status == MessageStatus.read) return;
-      _messages[index] = _messages[index].copyWith(status: MessageStatus.read);
+      final current = _messages[index];
+      final status = latestMessageStatus(current.status, MessageStatus.read);
+      if (status == current.status) return;
+      _messages[index] = current.copyWith(status: status);
       notifyListeners();
     }
   }

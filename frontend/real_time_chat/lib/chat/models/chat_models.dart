@@ -3,6 +3,21 @@ import '../../utils/avatar_url.dart';
 
 enum MessageStatus { pending, sent, delivered, read, failed }
 
+int messageStatusRank(MessageStatus status) => switch (status) {
+  MessageStatus.failed => -1,
+  MessageStatus.pending => 0,
+  MessageStatus.sent => 1,
+  MessageStatus.delivered => 2,
+  MessageStatus.read => 3,
+};
+
+MessageStatus latestMessageStatus(
+  MessageStatus current,
+  MessageStatus incoming,
+) => messageStatusRank(incoming) > messageStatusRank(current)
+    ? incoming
+    : current;
+
 int _requiredInt(Object? value, String field) {
   if (value is int) return value;
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -76,6 +91,13 @@ class ChatMessage {
 
   bool isMine(int currentUserId) => sender.id == currentUserId;
 
+  String get senderName {
+    final username = sender.username.trim();
+    if (username.isNotEmpty) return username;
+    final email = sender.email?.trim() ?? '';
+    return email.isNotEmpty ? email : 'Kullanıcı';
+  }
+
   ChatMessage copyWith({
     int? id,
     DateTime? createdAt,
@@ -109,7 +131,21 @@ class ChatMessage {
     createdAt: DateTime.parse(
       _requiredString(json['created_at'], 'message.created_at'),
     ).toLocal(),
+    status: _statusFromJson(json),
   );
+
+  static MessageStatus _statusFromJson(Map<String, dynamic> json) {
+    final rawStatus = json['status']?.toString().toLowerCase();
+    if (rawStatus != null) {
+      for (final status in MessageStatus.values) {
+        if (status.name == rawStatus) return status;
+      }
+    }
+    final readCount = int.tryParse('${json['read_count'] ?? 0}') ?? 0;
+    if (readCount > 0 || json['read_at'] != null) return MessageStatus.read;
+    if (json['delivered_at'] != null) return MessageStatus.delivered;
+    return MessageStatus.delivered;
+  }
 }
 
 enum ConversationType { private, group }

@@ -289,10 +289,7 @@ String? senderNameForMessage({
   required bool showSenderNames,
 }) {
   if (!showSenderNames || message.isMine(currentUserId)) return null;
-  final username = message.sender.username.trim();
-  if (username.isNotEmpty) return username;
-  final email = message.sender.email?.trim() ?? '';
-  return email.isNotEmpty ? email : 'Kullanıcı';
+  return message.senderName;
 }
 
 String _subtitle(ChatController controller) {
