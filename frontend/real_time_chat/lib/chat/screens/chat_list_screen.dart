@@ -8,6 +8,7 @@ import '../models/chat_models.dart';
 import '../services/mock_web_socket_service.dart';
 import '../services/chat_repository.dart';
 import '../services/web_socket_service.dart';
+import '../utils/message_content.dart';
 import '../utils/chat_timestamp.dart';
 import '../widgets/chat_widgets.dart';
 import '../../theme/app_colors.dart';
@@ -338,7 +339,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 ? const _DesktopEmptyState()
                 : ChangeNotifierProvider.value(
                     value: _selectedController!,
-                    child: const ChatDetailScreen(),
+                    child: const ChatDetailScreen(showBackButton: false),
                   ),
           ),
         ],
@@ -375,7 +376,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
     return ChatPreview(
       conversationId: controller.conversationId,
       user: controller.peer,
-      lastMessage: message?.content ?? 'Henüz mesaj yok',
+      lastMessage: message == null
+          ? 'Henüz mesaj yok'
+          : previewTextForMessage(
+              content: message.content,
+              messageType: message.messageType,
+            ),
       updatedAt: controller.lastActivityAt,
       unreadCount: controller.unreadCount,
       lastMessageIsMine: message?.isMine(controller.currentUser.id) ?? false,
@@ -745,7 +751,7 @@ class _ChatRow extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               SizedBox(
-                width: 54,
+                width: 68,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -766,6 +772,13 @@ class _ChatRow extends StatelessWidget {
                       _UnreadBadge(
                         conversationId: preview.conversationId,
                         count: preview.unreadCount,
+                      )
+                    else if (preview.lastMessageIsMine &&
+                        preview.lastMessageStatus == MessageStatus.read)
+                      const Icon(
+                        Icons.done_all_rounded,
+                        size: 16,
+                        color: AppColors.online,
                       )
                     else
                       const SizedBox(height: 21),

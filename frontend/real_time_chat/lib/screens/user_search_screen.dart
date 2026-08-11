@@ -101,7 +101,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
               onChanged: _performSearch,
               style: TextStyle(color: textPrimary, fontSize: 14),
               decoration: InputDecoration(
-                hintText: 'Search contacts by username or email...',
+                hintText: 'Kullanıcı adı veya e-postaya göre ara...',
                 hintStyle: TextStyle(color: textSecondary, fontSize: 14),
                 prefixIcon: Icon(
                   Icons.search_rounded,
@@ -184,7 +184,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Discover New Contacts',
+              'Yeni Kişiler Keşfet',
               style: TextStyle(
                 color: textPrimary,
                 fontSize: 17,
@@ -193,7 +193,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Search for someone by username or email to start chatting.',
+              'Sohbet başlatmak için kullanıcı adı ya da e-posta ile arama yap.',
               textAlign: TextAlign.center,
               style: TextStyle(color: textSecondary, fontSize: 13),
             ),
@@ -216,12 +216,18 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
             Icon(Icons.person_off_rounded, size: 48, color: textSecondary),
             const SizedBox(height: 16),
             Text(
-              'No contacts found',
+              'Kişi bulunamadı',
               style: TextStyle(
                 color: textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Aramanı değiştirip tekrar deneyebilirsin.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: textSecondary, fontSize: 13),
             ),
           ],
         ),
@@ -245,7 +251,6 @@ class _WhatsAppUserTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final leftBg = AppTheme.leftPanelBg(context);
     final textPrimary = AppTheme.textPrimary(context);
-    final textSecondary = AppTheme.textSecondary(context);
 
     return InkWell(
       onTap: isStarting ? null : onChat,
@@ -289,11 +294,6 @@ class _WhatsAppUserTile extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                       fontSize: 16,
                     ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    user.email,
-                    style: TextStyle(color: textSecondary, fontSize: 13),
                   ),
                 ],
               ),

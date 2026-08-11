@@ -39,7 +39,11 @@ abstract interface class WebSocketService {
   Stream<String> get errors;
   Future<void> connect();
   Future<void> disconnect();
-  void sendMessage({required String clientMessageId, required String content});
+  void sendMessage({
+    required String clientMessageId,
+    required String content,
+    String messageType = 'text',
+  });
   void sendTypingStart();
   void sendTypingStop();
   void sendMessageRead(int messageId);
@@ -278,12 +282,17 @@ class ContractWebSocketService implements WebSocketService {
   }
 
   @override
-  void sendMessage({required String clientMessageId, required String content}) {
+  void sendMessage({
+    required String clientMessageId,
+    required String content,
+    String messageType = 'text',
+  }) {
     final clean = content.trim();
     if (clean.isEmpty) throw ArgumentError('Mesaj boş olamaz.');
     _send('message.send', {
       'client_message_id': clientMessageId,
       'content': clean,
+      'message_type': messageType,
     });
   }
 

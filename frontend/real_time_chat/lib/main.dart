@@ -48,7 +48,7 @@ class _RealTimeChatAppState extends State<RealTimeChatApp> {
       valueListenable: AppTheme.themeModeNotifier,
       builder: (context, currentMode, child) {
         return MaterialApp(
-          title: 'RealTime Chat',
+          title: 'Chat',
           navigatorKey: _navigatorKey,
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
@@ -81,7 +81,7 @@ class ChatApp extends StatelessWidget {
     if (mode == ChatConnectionMode.real && socketOverride == null) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'Pulse Chat',
+        title: 'Chat',
         themeMode: ThemeMode.dark,
         theme: AppTheme.dark,
         darkTheme: AppTheme.dark,
@@ -106,7 +106,7 @@ class ChatApp extends StatelessWidget {
       )..initialize(),
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'Pulse Chat',
+        title: 'Chat',
         themeMode: ThemeMode.dark,
         theme: AppTheme.dark,
         darkTheme: AppTheme.dark,

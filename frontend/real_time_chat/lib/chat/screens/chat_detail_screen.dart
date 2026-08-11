@@ -5,10 +5,14 @@ import '../controllers/chat_controller.dart';
 import '../models/chat_models.dart';
 import '../services/web_socket_service.dart';
 import '../widgets/chat_widgets.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 
 class ChatDetailScreen extends StatefulWidget {
-  const ChatDetailScreen({super.key});
+  const ChatDetailScreen({super.key, this.showBackButton = true});
+
+  final bool showBackButton;
+
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
 }
@@ -16,13 +20,19 @@ class ChatDetailScreen extends StatefulWidget {
 class _ChatDetailScreenState extends State<ChatDetailScreen>
     with WidgetsBindingObserver {
   final scrollController = ScrollController();
+  late final ChatController _controller;
   int previousCount = 0;
   bool showJumpButton = false;
   @override
   void initState() {
     super.initState();
+    _controller = context.read<ChatController>();
     WidgetsBinding.instance.addObserver(this);
     scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _controller.openConversation();
+    });
   }
 
   void _onScroll() {
@@ -47,14 +57,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    context.read<ChatController>().setAppForeground(
-      state == AppLifecycleState.resumed,
-    );
+    _controller.setAppForeground(state == AppLifecycleState.resumed);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _controller.closeConversation();
     scrollController.dispose();
     super.dispose();
   }
@@ -62,6 +71,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<ChatController>();
+    final surface = AppTheme.surface(context);
+    final border = AppTheme.cardBorder(context);
+    final textPrimary = AppTheme.textPrimary(context);
     if (controller.messages.length > previousCount) {
       previousCount = controller.messages.length;
       if (!showJumpButton) {
@@ -69,47 +81,56 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       }
     }
     return Scaffold(
+      backgroundColor: AppTheme.bg(context),
       appBar: AppBar(
-        backgroundColor: AppColors.surface,
-        shape: const Border(bottom: BorderSide(color: AppColors.border)),
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            UserAvatar(
-              user: controller.peer,
-              online: controller.peerIsOnline,
-              radius: 19,
-              heroTag: 'avatar-${controller.peer.id}',
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    controller.peer.username,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: Text(
-                      _subtitle(controller),
-                      key: ValueKey(
-                        '${controller.peerIsTyping}-${controller.peerIsOnline}',
-                      ),
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: _subtitleColor(controller),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
+        automaticallyImplyLeading: widget.showBackButton,
+        toolbarHeight: 72,
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        foregroundColor: textPrimary,
+        shape: Border(bottom: BorderSide(color: border)),
+        titleSpacing: widget.showBackButton ? 0 : 8,
+        title: Padding(
+          padding: EdgeInsets.only(left: widget.showBackButton ? 0 : 6),
+          child: Row(
+            children: [
+              UserAvatar(
+                user: controller.peer,
+                online: controller.peerIsOnline,
+                radius: 19,
+                heroTag: 'avatar-${controller.peer.id}',
               ),
-            ),
-          ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      controller.peer.username,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: Text(
+                        _subtitle(controller),
+                        key: ValueKey(
+                          '${controller.peerIsTyping}-${controller.peerIsOnline}',
+                        ),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: _subtitleColor(context, controller),
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           PopupMenuButton<String>(
@@ -136,14 +157,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             child: Stack(
               children: [
                 if (controller.messages.isEmpty)
-                  const Center(child: Text('Henüz mesaj yok'))
+                  _EmptyConversationState(
+                    onDiscover: () => Navigator.maybePop(context),
+                  )
                 else
                   DecoratedBox(
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       gradient: RadialGradient(
-                        center: Alignment(.75, -.65),
+                        center: const Alignment(.75, -.65),
                         radius: 1.25,
-                        colors: [Color(0xff172044), AppColors.background],
+                        colors: Theme.of(context).brightness == Brightness.dark
+                            ? const [Color(0xff172044), AppColors.background]
+                            : const [Color(0xfff8fbff), Color(0xffe8eef8)],
                       ),
                     ),
                     child: ListView.builder(
@@ -223,9 +248,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             ),
           ),
           DecoratedBox(
-            decoration: const BoxDecoration(
-              color: AppColors.surface,
-              border: Border(top: BorderSide(color: AppColors.border)),
+            decoration: BoxDecoration(
+              color: surface,
+              border: Border(top: BorderSide(color: border)),
             ),
             child: MessageInput(
               onSend: controller.send,
@@ -264,12 +289,70 @@ String _subtitle(ChatController controller) {
 bool _sameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
 
-Color _subtitleColor(ChatController controller) {
+Color _subtitleColor(BuildContext context, ChatController controller) {
   if (controller.connection == SocketConnectionState.connecting ||
       controller.connection == SocketConnectionState.reconnecting) {
     return AppColors.warning;
   }
   if (controller.peerIsTyping) return AppColors.secondary;
   if (controller.peerIsOnline) return AppColors.online;
-  return AppColors.textMuted;
+  return AppTheme.textSecondary(context);
+}
+
+class _EmptyConversationState extends StatelessWidget {
+  const _EmptyConversationState({required this.onDiscover});
+
+  final VoidCallback onDiscover;
+
+  @override
+  Widget build(BuildContext context) {
+    final textPrimary = AppTheme.textPrimary(context);
+    final textSecondary = AppTheme.textSecondary(context);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(
+                gradient: AppTheme.primaryGradient,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.primary.withValues(alpha: 0.25),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.chat_bubble_outline_rounded,
+                color: Colors.white,
+                size: 38,
+              ),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              'Henüz mesaj yok',
+              style: TextStyle(
+                color: textPrimary,
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'İlk mesajı göndererek sohbeti başlatabilirsin.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: textSecondary, height: 1.45),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

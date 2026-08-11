@@ -52,8 +52,8 @@ class ChatRepository {
   }) async {
     final cleanName = name.trim();
     if (cleanName.isEmpty) throw ArgumentError('Grup adı boş olamaz.');
-    if (memberIds.isEmpty || memberIds.length > 5) {
-      throw ArgumentError('Grup 1-5 üye içermelidir.');
+    if (memberIds.isEmpty || memberIds.length > 4) {
+      throw ArgumentError('Gruba en fazla 4 kişi eklenebilir (siz dahil 5 kişi).');
     }
     for (final id in memberIds) {
       _validateId(id);
@@ -97,6 +97,11 @@ class ChatRepository {
       messages: messages,
       hasMore: map['next'] != null || messages.length >= pageSize,
     );
+  }
+
+  Future<void> markConversationRead(int conversationId) async {
+    _validateId(conversationId);
+    await client.post('conversations/$conversationId/read/');
   }
 
   static void _validateId(int id) {

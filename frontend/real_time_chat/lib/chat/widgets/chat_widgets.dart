@@ -1,9 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/chat_models.dart';
+import '../utils/message_content.dart';
+import 'voice_message_player.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
+import '../../services/voice_message_recorder.dart';
 
 class UserAvatar extends StatelessWidget {
   const UserAvatar({
@@ -158,7 +163,16 @@ class MessageBubble extends StatelessWidget {
   final VoidCallback? onRetry;
   @override
   Widget build(BuildContext context) {
+    final bubbleColor = AppTheme.card(context);
+    final borderColor = AppTheme.cardBorder(context);
+    final incomingText = AppTheme.textPrimary(context);
+    final secondaryText = AppTheme.textSecondary(context);
     final radius = Radius.circular(showTail ? 5 : 18);
+    final gifMessage = parseGifMessage(message.content);
+    final audioMessage = isAudioMessage(
+      messageType: message.messageType,
+      content: message.content,
+    );
     return GestureDetector(
       onTap: message.status == MessageStatus.failed ? onRetry : null,
       child: Align(
@@ -176,9 +190,9 @@ class MessageBubble extends StatelessWidget {
           ),
           padding: const EdgeInsets.fromLTRB(12, 8, 9, 6),
           decoration: BoxDecoration(
-            color: isMine ? null : AppColors.card,
+            color: isMine ? null : bubbleColor,
             gradient: isMine ? AppColors.primaryGradient : null,
-            border: isMine ? null : Border.all(color: AppColors.border),
+            border: isMine ? null : Border.all(color: borderColor),
             borderRadius: BorderRadius.only(
               topLeft: const Radius.circular(18),
               topRight: const Radius.circular(18),
@@ -186,40 +200,136 @@ class MessageBubble extends StatelessWidget {
               bottomRight: isMine ? radius : const Radius.circular(18),
             ),
           ),
-          child: Wrap(
-            alignment: WrapAlignment.end,
-            crossAxisAlignment: WrapCrossAlignment.end,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(right: 9, bottom: 2),
-                child: Text(
-                  message.content,
-                  style: const TextStyle(
-                    fontSize: 15.5,
-                    height: 1.3,
-                    color: AppColors.textPrimary,
+          child: audioMessage
+              ? ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 260),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      VoiceMessagePlayer(
+                        dataUrl: message.content,
+                        isMine: isMine,
+                      ),
+                      const SizedBox(height: 8),
+                      _MessageMeta(
+                        isMine: isMine,
+                        createdAt: message.createdAt,
+                        status: message.status,
+                        secondaryText: secondaryText,
+                      ),
+                    ],
+                  ),
+                )
+              : gifMessage == null
+              ? Wrap(
+                  alignment: WrapAlignment.end,
+                  crossAxisAlignment: WrapCrossAlignment.end,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 9, bottom: 2),
+                      child: Text(
+                        message.content,
+                        style: TextStyle(
+                          fontSize: 15.5,
+                          height: 1.3,
+                          color: isMine ? AppColors.textPrimary : incomingText,
+                        ),
+                      ),
+                    ),
+                    _MessageMeta(
+                      isMine: isMine,
+                      createdAt: message.createdAt,
+                      status: message.status,
+                      secondaryText: secondaryText,
+                    ),
+                  ],
+                )
+              : ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 260),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: AspectRatio(
+                          aspectRatio: 1.2,
+                          child: Image.network(
+                            gifMessage.url,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => Container(
+                              color: bubbleColor,
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.all(20),
+                              child: Text(
+                                gifMessage.label,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: incomingText,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        gifMessage.label,
+                        style: TextStyle(
+                          color: isMine
+                              ? AppColors.textPrimary.withValues(alpha: .92)
+                              : incomingText,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      _MessageMeta(
+                        isMine: isMine,
+                        createdAt: message.createdAt,
+                        status: message.status,
+                        secondaryText: secondaryText,
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              Text(
-                _time(message.createdAt),
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: isMine
-                      ? AppColors.textPrimary.withValues(alpha: .72)
-                      : AppColors.textMuted,
-                ),
-              ),
-              if (isMine)
-                Padding(
-                  padding: const EdgeInsets.only(left: 3),
-                  child: MessageStatusIcon(status: message.status),
-                ),
-            ],
-          ),
         ),
       ),
     );
   }
+}
+
+class _MessageMeta extends StatelessWidget {
+  const _MessageMeta({
+    required this.isMine,
+    required this.createdAt,
+    required this.status,
+    required this.secondaryText,
+  });
+
+  final bool isMine;
+  final DateTime createdAt;
+  final MessageStatus status;
+  final Color secondaryText;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: [
+      Text(
+        _time(createdAt),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: isMine
+              ? AppColors.textPrimary.withValues(alpha: .72)
+              : secondaryText,
+        ),
+      ),
+      if (isMine)
+        Padding(
+          padding: const EdgeInsets.only(left: 3),
+          child: MessageStatusIcon(status: status),
+        ),
+    ],
+  );
 }
 
 class MessageStatusIcon extends StatelessWidget {
@@ -237,7 +347,7 @@ class MessageStatusIcon extends StatelessWidget {
     return Icon(
       icon,
       size: 15,
-      color: read ? const Color(0xff8fc5ff) : AppColors.textSecondary,
+      color: read ? AppColors.online : AppColors.textSecondary,
     );
   }
 }
@@ -272,8 +382,8 @@ class _TypingIndicatorState extends State<TypingIndicator> {
       margin: const EdgeInsets.fromLTRB(12, 4, 12, 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.card,
-        border: Border.all(color: AppColors.border),
+        color: AppTheme.card(context),
+        border: Border.all(color: AppTheme.cardBorder(context)),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
@@ -286,7 +396,7 @@ class _TypingIndicatorState extends State<TypingIndicator> {
             width: 6,
             height: index == active ? 10 : 6,
             decoration: BoxDecoration(
-              color: AppColors.textSecondary,
+              color: AppTheme.textSecondary(context),
               shape: BoxShape.circle,
             ),
           ),
@@ -302,7 +412,7 @@ class MessageInput extends StatefulWidget {
     required this.onSend,
     required this.onChanged,
   });
-  final bool Function(String) onSend;
+  final bool Function(String, {String messageType}) onSend;
   final ValueChanged<String> onChanged;
   @override
   State<MessageInput> createState() => _MessageInputState();
@@ -310,20 +420,339 @@ class MessageInput extends StatefulWidget {
 
 class _MessageInputState extends State<MessageInput> {
   final controller = TextEditingController();
+  final focusNode = FocusNode();
+  VoiceMessageRecorder? _recorder;
+  Timer? _recordingTimer;
   bool hasText = false;
+  bool _isRecording = false;
+  bool _isSendingVoice = false;
+  Duration _recordingDuration = Duration.zero;
+
   @override
   void dispose() {
+    _recordingTimer?.cancel();
+    unawaited(_recorder?.cancel() ?? Future<void>.value());
     controller.dispose();
+    focusNode.dispose();
     super.dispose();
   }
 
   void send() {
-    if (!hasText) return;
-    final sent = widget.onSend(controller.text);
+    if (!hasText || _isRecording || _isSendingVoice) return;
+    final sent = widget.onSend(controller.text, messageType: 'text');
     if (!sent) return;
     controller.clear();
     widget.onChanged('');
     setState(() => hasText = false);
+  }
+
+  void _syncInputState() {
+    final value = controller.text;
+    widget.onChanged(value);
+    setState(() => hasText = value.trim().isNotEmpty);
+  }
+
+  void _insertText(String value) {
+    final selection = controller.selection;
+    final text = controller.text;
+    final start = selection.isValid ? selection.start : text.length;
+    final end = selection.isValid ? selection.end : text.length;
+    final newText = text.replaceRange(start, end, value);
+    controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: start + value.length),
+    );
+    _syncInputState();
+    focusNode.requestFocus();
+  }
+
+  void _sendGif(_GifPreset gif) {
+    widget.onSend(
+      encodeGifMessage(GifMessageContent(label: gif.label, url: gif.url)),
+      messageType: 'text',
+    );
+    focusNode.requestFocus();
+  }
+
+  void _showMessage(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(value), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  String _recordingClock(Duration value) {
+    final minutes = value.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = value.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  Future<void> _startVoiceRecording() async {
+    if (_isRecording || _isSendingVoice) return;
+    if (!voiceMessageRecordingSupported) {
+      _showMessage('Bu tarayıcıda ses kaydı desteklenmiyor.');
+      return;
+    }
+    try {
+      final recorder = await createVoiceMessageRecorder();
+      if (recorder == null) {
+        _showMessage('Ses kaydı başlatılamadı.');
+        return;
+      }
+      await recorder.start();
+      _recordingTimer?.cancel();
+      _recordingDuration = Duration.zero;
+      _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() => _recordingDuration += const Duration(seconds: 1));
+        if (_recordingDuration >= const Duration(minutes: 1)) {
+          unawaited(_finishVoiceRecording());
+        }
+      });
+      HapticFeedback.selectionClick();
+      setState(() {
+        _recorder = recorder;
+        _isRecording = true;
+      });
+    } on Object catch (error) {
+      _showMessage('Mikrofon açılamadı: $error');
+    }
+  }
+
+  Future<void> _cancelVoiceRecording() async {
+    _recordingTimer?.cancel();
+    await _recorder?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _recorder = null;
+      _isRecording = false;
+      _isSendingVoice = false;
+      _recordingDuration = Duration.zero;
+    });
+  }
+
+  Future<void> _finishVoiceRecording() async {
+    if (!_isRecording || _isSendingVoice) return;
+    final recorder = _recorder;
+    if (recorder == null) return;
+    _recordingTimer?.cancel();
+    setState(() => _isSendingVoice = true);
+    try {
+      final recorded = await recorder.stop();
+      if (!mounted) return;
+      final payload = recorded?.dataUrl.trim() ?? '';
+      if (payload.isEmpty) {
+        _showMessage('Sesli mesaj kaydedilemedi.');
+        setState(() {
+          _recorder = null;
+          _isRecording = false;
+          _isSendingVoice = false;
+          _recordingDuration = Duration.zero;
+        });
+        return;
+      }
+      final sent = widget.onSend(payload, messageType: 'audio');
+      if (!sent) _showMessage('Sesli mesaj gönderilemedi.');
+    } on Object catch (error) {
+      if (mounted) _showMessage('Sesli mesaj gönderilemedi: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _recorder = null;
+          _isRecording = false;
+          _isSendingVoice = false;
+          _recordingDuration = Duration.zero;
+        });
+        focusNode.requestFocus();
+      }
+    }
+  }
+
+  Future<void> _toggleVoiceRecording() async {
+    if (_isRecording) {
+      await _finishVoiceRecording();
+      return;
+    }
+    await _startVoiceRecording();
+  }
+
+  Future<void> _openEmojiPicker() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppTheme.surface(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 26),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Hızlı emojiler',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: _emojiPresets.map((emoji) {
+                return InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _insertText('$emoji ');
+                  },
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppTheme.headerBg(context),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(emoji, style: const TextStyle(fontSize: 24)),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openGifPicker() async {
+    final searchController = TextEditingController();
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppTheme.surface(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final query = searchController.text.trim().toLowerCase();
+          final gifs = _gifPresets
+              .where(
+                (gif) =>
+                    query.isEmpty || gif.label.toLowerCase().contains(query),
+              )
+              .toList();
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 26),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'GIF seç',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Hızlı tepki için bir GIF seç ya da filtrele.',
+                  style: TextStyle(
+                    color: AppTheme.textSecondary(context),
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: searchController,
+                  onChanged: (_) => setModalState(() {}),
+                  decoration: InputDecoration(
+                    hintText: 'GIF ara...',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    filled: true,
+                    fillColor: AppTheme.headerBg(context),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(
+                        color: AppTheme.cardBorder(context),
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(
+                        color: AppTheme.cardBorder(context),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 220,
+                  child: gifs.isEmpty
+                      ? Center(
+                          child: Text(
+                            'Bu aramaya uygun GIF bulunamadı.',
+                            style: TextStyle(
+                              color: AppTheme.textSecondary(context),
+                            ),
+                          ),
+                        )
+                      : GridView.builder(
+                          itemCount: gifs.length,
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                                childAspectRatio: 1.45,
+                              ),
+                          itemBuilder: (context, index) {
+                            final gif = gifs[index];
+                            return InkWell(
+                              borderRadius: BorderRadius.circular(18),
+                              onTap: () {
+                                Navigator.pop(context);
+                                _sendGif(gif);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.headerBg(context),
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(
+                                    color: AppTheme.cardBorder(context),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      gif.preview,
+                                      style: const TextStyle(fontSize: 28),
+                                    ),
+                                    Text(
+                                      gif.label,
+                                      style: TextStyle(
+                                        color: AppTheme.textPrimary(context),
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+    searchController.dispose();
   }
 
   @override
@@ -331,62 +760,201 @@ class _MessageInputState extends State<MessageInput> {
     top: false,
     child: Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              minLines: 1,
-              maxLines: 5,
-              textCapitalization: TextCapitalization.sentences,
-              onChanged: (value) {
-                widget.onChanged(value);
-                setState(() => hasText = value.trim().isNotEmpty);
-              },
-              onSubmitted: (_) => send(),
-              decoration: InputDecoration(
-                hintText: 'Mesaj yaz…',
-                filled: true,
-                fillColor: AppColors.input,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(26),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 12,
-                ),
+          if (_isRecording)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppTheme.headerBg(context),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppTheme.cardBorder(context)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.mic_rounded, color: AppColors.error),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Ses kaydı alınıyor • ${_recordingClock(_recordingDuration)}',
+                      style: TextStyle(
+                        color: AppTheme.textPrimary(context),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _cancelVoiceRecording,
+                    child: const Text('İptal'),
+                  ),
+                ],
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          AnimatedScale(
-            scale: hasText ? 1.0 : .94,
-            duration: const Duration(milliseconds: 180),
-            child: AnimatedOpacity(
-              opacity: hasText ? 1 : .45,
-              duration: const Duration(milliseconds: 180),
-              child: DecoratedBox(
-                decoration: const BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  onPressed: hasText ? send : null,
-                  color: Colors.white,
-                  icon: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 180),
-                    child: Icon(
-                      hasText ? Icons.send_rounded : Icons.mic_rounded,
-                      key: ValueKey(hasText),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Focus(
+                  onKeyEvent: (_, event) {
+                    if (_isRecording || _isSendingVoice) {
+                      return KeyEventResult.ignored;
+                    }
+                    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+                    if (event.logicalKey != LogicalKeyboardKey.enter) {
+                      return KeyEventResult.ignored;
+                    }
+                    if (HardwareKeyboard.instance.isShiftPressed) {
+                      return KeyEventResult.ignored;
+                    }
+                    send();
+                    return KeyEventResult.handled;
+                  },
+                  child: TextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    minLines: 1,
+                    maxLines: 1,
+                    readOnly: _isRecording || _isSendingVoice,
+                    textInputAction: TextInputAction.send,
+                    textCapitalization: TextCapitalization.sentences,
+                    keyboardType: TextInputType.text,
+                    onChanged: (value) {
+                      widget.onChanged(value);
+                      setState(() => hasText = value.trim().isNotEmpty);
+                    },
+                    onSubmitted: (_) => send(),
+                    decoration: InputDecoration(
+                      hintText: _isRecording
+                          ? 'Kaydı bitirmek için mikrofon düğmesine tekrar dokun…'
+                          : 'Mesaj yaz…',
+                      filled: true,
+                      fillColor: Theme.of(context).brightness == Brightness.dark
+                          ? AppColors.input
+                          : AppTheme.headerBg(context),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(26),
+                        borderSide: BorderSide(
+                          color: AppTheme.cardBorder(context),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(26),
+                        borderSide: BorderSide(
+                          color: AppTheme.cardBorder(context),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(26),
+                        borderSide: const BorderSide(color: AppTheme.primary),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+              const SizedBox(width: 8),
+              _InputActionButton(
+                icon: Icons.emoji_emotions_outlined,
+                onTap: _openEmojiPicker,
+              ),
+              const SizedBox(width: 8),
+              _InputActionButton(label: 'GIF', onTap: _openGifPicker),
+              const SizedBox(width: 8),
+              AnimatedScale(
+                scale: _isRecording ? 1.03 : 1.0,
+                duration: const Duration(milliseconds: 180),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: _isRecording
+                        ? const LinearGradient(
+                            colors: [Color(0xFFF87171), Color(0xFFEF4444)],
+                          )
+                        : AppColors.primaryGradient,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    tooltip: hasText
+                        ? 'Gönder'
+                        : _isRecording
+                        ? 'Kaydı bitir ve gönder'
+                        : 'Sesli mesaj kaydet',
+                    onPressed: _isSendingVoice
+                        ? null
+                        : (hasText ? send : _toggleVoiceRecording),
+                    color: Colors.white,
+                    icon: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: _isSendingVoice
+                          ? const SizedBox.square(
+                              key: ValueKey('voice-loading'),
+                              dimension: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : Icon(
+                              hasText
+                                  ? Icons.send_rounded
+                                  : (_isRecording
+                                        ? Icons.stop_rounded
+                                        : Icons.mic_rounded),
+                              key: ValueKey(
+                                '$hasText-$_isRecording-$_isSendingVoice',
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
+      ),
+    ),
+  );
+}
+
+class _InputActionButton extends StatelessWidget {
+  const _InputActionButton({this.icon, this.label, required this.onTap});
+
+  final IconData? icon;
+  final String? label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: AppTheme.headerBg(context),
+    borderRadius: BorderRadius.circular(18),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        width: label == null ? 42 : 52,
+        height: 42,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppTheme.cardBorder(context)),
+        ),
+        child: label != null
+            ? Text(
+                label!,
+                style: TextStyle(
+                  color: AppTheme.textPrimary(context),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                ),
+              )
+            : Icon(icon, color: AppTheme.textSecondary(context), size: 20),
       ),
     ),
   );
@@ -410,15 +978,15 @@ class DateSeparator extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 12),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
-          color: AppColors.card,
-          border: Border.all(color: AppColors.border),
+          color: AppTheme.card(context),
+          border: Border.all(color: AppTheme.cardBorder(context)),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
           label,
-          style: Theme.of(
-            context,
-          ).textTheme.labelMedium?.copyWith(color: AppColors.textSecondary),
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: AppTheme.textSecondary(context),
+          ),
         ),
       ),
     );
@@ -427,3 +995,51 @@ class DateSeparator extends StatelessWidget {
 
 String _time(DateTime value) =>
     '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+
+class _GifPreset {
+  const _GifPreset({
+    required this.label,
+    required this.url,
+    required this.preview,
+  });
+
+  final String label;
+  final String url;
+  final String preview;
+}
+
+const _emojiPresets = [
+  '😀',
+  '😂',
+  '😍',
+  '🔥',
+  '👏',
+  '🥳',
+  '🤝',
+  '🙌',
+  '💜',
+  '😎',
+];
+
+const _gifPresets = [
+  _GifPreset(
+    label: 'Kutlama',
+    preview: '🥳',
+    url: 'https://media.giphy.com/media/3KC2jD2QcBOSc/giphy.gif',
+  ),
+  _GifPreset(
+    label: 'Selam',
+    preview: '👋',
+    url: 'https://media.giphy.com/media/xT9IgG50Fb7Mi0prBC/giphy.gif',
+  ),
+  _GifPreset(
+    label: 'Onay',
+    preview: '✅',
+    url: 'https://media.giphy.com/media/111ebonMs90YLu/giphy.gif',
+  ),
+  _GifPreset(
+    label: 'Şaşkın',
+    preview: '😮',
+    url: 'https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif',
+  ),
+];

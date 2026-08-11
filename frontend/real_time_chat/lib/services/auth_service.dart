@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import '../models/user_model.dart';
 import 'api_client.dart';
@@ -67,12 +69,25 @@ class AuthService {
 
   Future<void> logout() async {
     try {
+      await setOffline();
       final refresh = await TokenStorage().getRefreshToken();
       if (refresh != null) {
         await _client.dio.post('/api/auth/logout/', data: {'refresh': refresh});
       }
     } catch (_) {}
     await TokenStorage().clearTokens();
+  }
+
+  Future<void> heartbeatPresence() async {
+    try {
+      await _client.dio.post('/api/users/presence/heartbeat/');
+    } catch (_) {}
+  }
+
+  Future<void> setOffline() async {
+    try {
+      await _client.dio.post('/api/users/presence/offline/');
+    } catch (_) {}
   }
 
   Future<UserModel?> getProfile() async {
@@ -87,13 +102,39 @@ class AuthService {
     return null;
   }
 
-  Future<UserModel?> updateProfile({String? username, String? email}) async {
+  Future<UserModel?> updateProfile({
+    String? username,
+    String? email,
+    Uint8List? avatarBytes,
+    String? avatarFileName,
+    String? avatarMimeType,
+  }) async {
     try {
-      final data = <String, dynamic>{};
-      if (username != null && username.isNotEmpty) data['username'] = username;
-      if (email != null && email.isNotEmpty) data['email'] = email;
+      final data = FormData();
+      if (username != null && username.isNotEmpty) {
+        data.fields.add(MapEntry('username', username));
+      }
+      if (email != null && email.isNotEmpty) {
+        data.fields.add(MapEntry('email', email));
+      }
+      if (avatarBytes != null && avatarBytes.isNotEmpty) {
+        data.files.add(
+          MapEntry(
+            'avatar',
+            MultipartFile.fromBytes(
+              avatarBytes,
+              filename: avatarFileName ?? 'avatar.png',
+              contentType: DioMediaType.parse(avatarMimeType ?? 'image/png'),
+            ),
+          ),
+        );
+      }
 
-      final response = await _client.dio.patch('/api/users/me/', data: data);
+      final response = await _client.dio.patch(
+        '/api/users/me/',
+        data: data,
+        options: Options(contentType: 'multipart/form-data'),
+      );
       if (response.statusCode == 200 && response.data != null) {
         return UserModel.fromJson(response.data);
       }

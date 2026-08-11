@@ -16,6 +16,8 @@ feature/flutter-chat
 
 Commit mesajları açıklayıcı olmalıdır.
 
+
+
 Örnek:
 
 feat: add JWT authentication

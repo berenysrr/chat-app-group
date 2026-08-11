@@ -1,5 +1,12 @@
 import 'user_model.dart';
 
+DateTime? _parseLocalDateTime(Object? value) {
+  if (value == null) return null;
+  final parsed = DateTime.tryParse(value.toString());
+  if (parsed == null) return null;
+  return parsed.isUtc ? parsed.toLocal() : parsed;
+}
+
 class ConversationMemberModel {
   final int id;
   final UserModel user;
@@ -23,26 +30,35 @@ class ConversationMemberModel {
 class LastMessageModel {
   final int id;
   final String content;
+  final String messageType;
   final UserModel? sender;
   final DateTime? createdAt;
+  final int readCount;
+  final bool isReadByMe;
 
   LastMessageModel({
     required this.id,
     required this.content,
+    this.messageType = 'text',
     this.sender,
     this.createdAt,
+    this.readCount = 0,
+    this.isReadByMe = false,
   });
 
   factory LastMessageModel.fromJson(Map<String, dynamic> json) {
     return LastMessageModel(
       id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
       content: json['content'] ?? '',
+      messageType: json['message_type'] ?? 'text',
       sender: json['sender'] != null
           ? UserModel.fromJson(json['sender'])
           : null,
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'])
-          : null,
+      createdAt: _parseLocalDateTime(json['created_at']),
+      readCount: json['read_count'] is int
+          ? json['read_count'] as int
+          : int.tryParse('${json['read_count'] ?? 0}') ?? 0,
+      isReadByMe: json['is_read_by_me'] == true,
     );
   }
 }
@@ -51,9 +67,10 @@ class ConversationModel {
   final int id;
   final String type;
   final String? name;
-  final UserModel? createdBy;
+  final int? createdBy;
   final List<ConversationMemberModel> members;
   final LastMessageModel? lastMessage;
+  final int unreadCount;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -64,6 +81,7 @@ class ConversationModel {
     this.createdBy,
     required this.members,
     this.lastMessage,
+    this.unreadCount = 0,
     this.createdAt,
     this.updatedAt,
   });
@@ -73,9 +91,13 @@ class ConversationModel {
       id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
       type: json['type'] ?? 'private',
       name: json['name'],
-      createdBy: json['created_by'] != null
-          ? UserModel.fromJson(json['created_by'])
-          : null,
+      // Conversation API'si created_by alanını kullanıcı nesnesi değil,
+      // kullanıcı kimliği olarak döndürür.
+      createdBy: json['created_by'] == null
+          ? null
+          : (json['created_by'] is int
+                ? json['created_by'] as int
+                : int.tryParse(json['created_by'].toString())),
       members: json['members'] != null
           ? (json['members'] as List)
                 .map((member) => ConversationMemberModel.fromJson(member))
@@ -84,12 +106,11 @@ class ConversationModel {
       lastMessage: json['last_message'] != null
           ? LastMessageModel.fromJson(json['last_message'])
           : null,
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'])
-          : null,
-      updatedAt: json['updated_at'] != null
-          ? DateTime.tryParse(json['updated_at'])
-          : null,
+      unreadCount: json['unread_count'] is int
+          ? json['unread_count'] as int
+          : int.tryParse('${json['unread_count'] ?? 0}') ?? 0,
+      createdAt: _parseLocalDateTime(json['created_at']),
+      updatedAt: _parseLocalDateTime(json['updated_at']),
     );
   }
 }

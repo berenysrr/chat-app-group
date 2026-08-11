@@ -6,6 +6,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.db import models
+from django.utils import timezone
 from .serializers import LoginSerializer, UserSerializer, RegisterSerializer, UserUpdateSerializer
 
 User = get_user_model()
@@ -23,6 +24,9 @@ class RegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        user.is_online = True
+        user.last_seen = timezone.now()
+        user.save(update_fields=['is_online', 'last_seen'])
         
         # Generate tokens for the new user automatically
         refresh = RefreshToken.for_user(user)
@@ -49,6 +53,9 @@ class LogoutView(APIView):
             
             token = RefreshToken(refresh_token)
             token.blacklist()
+            request.user.is_online = False
+            request.user.last_seen = timezone.now()
+            request.user.save(update_fields=['is_online', 'last_seen'])
             return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
         except TokenError as e:
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -91,3 +98,35 @@ class UserSearchView(generics.ListAPIView):
     def list(self, request, *args, **kwargs):
         serializer = self.get_serializer(self.get_queryset(), many=True)
         return Response({"results": serializer.data})
+
+
+class PresenceHeartbeatView(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request):
+        request.user.is_online = True
+        request.user.last_seen = timezone.now()
+        request.user.save(update_fields=['is_online', 'last_seen'])
+        return Response(
+            {
+                "is_online": True,
+                "last_seen": request.user.last_seen.isoformat(),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PresenceOfflineView(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request):
+        request.user.is_online = False
+        request.user.last_seen = timezone.now()
+        request.user.save(update_fields=['is_online', 'last_seen'])
+        return Response(
+            {
+                "is_online": False,
+                "last_seen": request.user.last_seen.isoformat(),
+            },
+            status=status.HTTP_200_OK,
+        )
