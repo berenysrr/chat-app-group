@@ -19,13 +19,23 @@ class ConversationMemberModel {
   });
 
   factory ConversationMemberModel.fromJson(Map<String, dynamic> json) {
+    UserModel user;
+    if (json['user'] is Map<String, dynamic>) {
+      user = UserModel.fromJson(json['user'] as Map<String, dynamic>);
+    } else {
+      final userId = json['user_id'] is int
+          ? json['user_id'] as int
+          : int.tryParse('${json['user_id'] ?? json['user']}') ?? 0;
+      user = UserModel(id: userId, username: 'Kullanıcı', email: '');
+    }
     return ConversationMemberModel(
-      id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
-      user: UserModel.fromJson(json['user']),
-      role: json['role'] ?? 'member',
+      id: json['id'] is int ? json['id'] as int : int.tryParse('${json['id']}') ?? 0,
+      user: user,
+      role: json['role']?.toString() ?? 'member',
     );
   }
 }
+
 
 class LastMessageModel {
   final int id;

@@ -91,16 +91,21 @@ class AuthService {
   }
 
   Future<UserModel?> getProfile() async {
-    try {
-      final response = await _client.dio.get('/api/users/me/');
-      if (response.statusCode == 200 && response.data != null) {
-        return UserModel.fromJson(response.data);
+    for (int attempt = 0; attempt < 3; attempt++) {
+      try {
+        final response = await _client.dio.get('/api/users/me/');
+        if (response.statusCode == 200 && response.data != null) {
+          return UserModel.fromJson(response.data);
+        }
+      } catch (e) {
+        if (attempt < 2) {
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
       }
-    } catch (e) {
-      return null;
     }
     return null;
   }
+
 
   Future<UserModel?> updateProfile({
     String? username,
