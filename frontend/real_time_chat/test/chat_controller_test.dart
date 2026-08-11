@@ -37,6 +37,7 @@ void main() {
     expect(controller.messages, isEmpty);
     expect(controller.send('  Merhaba  '), isTrue);
     expect(controller.messages.single.content, 'Merhaba');
+    expect(controller.messages.single.status, MessageStatus.sent);
     controller.dispose();
   });
 
@@ -48,7 +49,7 @@ void main() {
     expect(controller.send('Kaybolmasın'), isFalse);
     expect(controller.messages.single.status, MessageStatus.failed);
     controller.retryMessage(controller.messages.single.clientMessageId);
-    expect(controller.messages.single.status, MessageStatus.pending);
+    expect(controller.messages.single.status, MessageStatus.sent);
     controller.dispose();
   });
 

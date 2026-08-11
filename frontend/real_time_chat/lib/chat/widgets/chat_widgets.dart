@@ -378,7 +378,7 @@ class MessageStatusIcon extends StatelessWidget {
     return Icon(
       icon,
       size: 15,
-      color: read ? AppColors.online : AppColors.textSecondary,
+      color: read ? AppColors.accentBlue : AppColors.textSecondary,
     );
   }
 }

@@ -1,6 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../auth/token_store.dart';
+import '../chat/models/chat_models.dart';
+import '../chat/services/web_socket_service.dart';
+import '../chat/widgets/chat_widgets.dart';
+import '../config/chat_config.dart';
 import '../models/conversation_model.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
@@ -38,6 +43,8 @@ class _ConversationListTabState extends State<ConversationListTab> {
   int? _startingUserId;
   Timer? _searchDebounce;
   Timer? _refreshTimer;
+  final Map<int, ContractWebSocketService> _receiptSockets = {};
+  final Map<int, StreamSubscription<ReadEvent>> _receiptSubscriptions = {};
   int _searchRequest = 0;
   final TextEditingController _filterController = TextEditingController();
   int _activeFilterIndex = 0; // 0 = All, 1 = Unread, 2 = Groups
@@ -56,6 +63,12 @@ class _ConversationListTabState extends State<ConversationListTab> {
   void dispose() {
     _searchDebounce?.cancel();
     _refreshTimer?.cancel();
+    for (final subscription in _receiptSubscriptions.values) {
+      unawaited(subscription.cancel());
+    }
+    for (final socket in _receiptSockets.values) {
+      unawaited(socket.dispose());
+    }
     _filterController.dispose();
     super.dispose();
   }
@@ -83,7 +96,53 @@ class _ConversationListTabState extends State<ConversationListTab> {
           _isLoading = false;
         }
       });
+      _syncReceiptSockets(list);
     }
+  }
+
+  void _syncReceiptSockets(List<ConversationModel> conversations) {
+    final activeIds = conversations.map((item) => item.id).toSet();
+    final removedIds = _receiptSockets.keys
+        .where((id) => !activeIds.contains(id))
+        .toList();
+    for (final id in removedIds) {
+      unawaited(_receiptSubscriptions.remove(id)?.cancel());
+      unawaited(_receiptSockets.remove(id)?.dispose());
+    }
+    for (final conversation in conversations) {
+      if (_receiptSockets.containsKey(conversation.id)) continue;
+      final socket = ContractWebSocketService(
+        conversationId: conversation.id,
+        baseUrl: ChatConfig.webSocketBaseUrl,
+        production: ChatConfig.production,
+        accessTokenProvider: SecureTokenStore().readAccessToken,
+      );
+      _receiptSockets[conversation.id] = socket;
+      _receiptSubscriptions[conversation.id] = socket
+          .listenMessageRead()
+          .listen((event) => _applyReadReceipt(conversation.id, event));
+      unawaited(socket.connect());
+    }
+  }
+
+  void _applyReadReceipt(int conversationId, ReadEvent event) {
+    final index = _conversations.indexWhere(
+      (conversation) => conversation.id == conversationId,
+    );
+    if (index < 0) return;
+    final conversation = _conversations[index];
+    final currentUser = _currentUser;
+    if (currentUser == null) return;
+    final updated = applyReadReceiptToConversation(
+      conversation,
+      messageId: event.messageId,
+      currentUserId: currentUser.id,
+    );
+    if (identical(updated, conversation)) return;
+    setState(() {
+      _conversations[index] = updated;
+      _filterConversations(_filterController.text);
+    });
   }
 
   void _filterConversations(String query) {
@@ -543,10 +602,9 @@ class _SleekConversationTile extends StatelessWidget {
         currentUser != null &&
         conversation.lastMessage?.sender?.id == currentUser!.id;
     final effectiveUnreadCount = isSelected ? 0 : conversation.unreadCount;
-    final showReadReceipt =
-        isLastMessageMine &&
-        effectiveUnreadCount == 0 &&
-        (conversation.lastMessage?.readCount ?? 0) > 0;
+    final lastMessageStatus = (conversation.lastMessage?.readCount ?? 0) > 0
+        ? MessageStatus.read
+        : MessageStatus.delivered;
     final presenceColor =
         (peerMember?.user.isOnline ?? previewUser?.isOnline) == true
         ? AppTheme.onlineGreen
@@ -629,8 +687,8 @@ class _SleekConversationTile extends StatelessWidget {
                           ),
                         ),
                       ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             timeStr,
@@ -639,15 +697,13 @@ class _SleekConversationTile extends StatelessWidget {
                               fontSize: 11,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          if (effectiveUnreadCount > 0)
-                            _UnreadCountBadge(count: effectiveUnreadCount)
-                          else if (showReadReceipt)
-                            const Icon(
-                              Icons.done_all_rounded,
-                              size: 15,
-                              color: AppTheme.onlineGreen,
-                            ),
+                          if (isLastMessageMine) ...[
+                            const SizedBox(width: 3),
+                            MessageStatusIcon(status: lastMessageStatus),
+                          ] else if (effectiveUnreadCount > 0) ...[
+                            const SizedBox(width: 5),
+                            _UnreadCountBadge(count: effectiveUnreadCount),
+                          ],
                         ],
                       ),
                     ],

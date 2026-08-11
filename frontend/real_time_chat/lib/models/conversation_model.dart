@@ -46,6 +46,16 @@ class LastMessageModel {
     this.isReadByMe = false,
   });
 
+  LastMessageModel copyWith({int? readCount}) => LastMessageModel(
+    id: id,
+    content: content,
+    messageType: messageType,
+    sender: sender,
+    createdAt: createdAt,
+    readCount: readCount ?? this.readCount,
+    isReadByMe: isReadByMe,
+  );
+
   factory LastMessageModel.fromJson(Map<String, dynamic> json) {
     return LastMessageModel(
       id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
@@ -86,6 +96,19 @@ class ConversationModel {
     this.updatedAt,
   });
 
+  ConversationModel copyWith({LastMessageModel? lastMessage}) =>
+      ConversationModel(
+        id: id,
+        type: type,
+        name: name,
+        createdBy: createdBy,
+        members: members,
+        lastMessage: lastMessage ?? this.lastMessage,
+        unreadCount: unreadCount,
+        createdAt: createdAt,
+        updatedAt: updatedAt,
+      );
+
   factory ConversationModel.fromJson(Map<String, dynamic> json) {
     return ConversationModel(
       id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
@@ -113,4 +136,19 @@ class ConversationModel {
       updatedAt: _parseLocalDateTime(json['updated_at']),
     );
   }
+}
+
+ConversationModel applyReadReceiptToConversation(
+  ConversationModel conversation, {
+  required int messageId,
+  required int currentUserId,
+}) {
+  final lastMessage = conversation.lastMessage;
+  if (lastMessage == null ||
+      lastMessage.id != messageId ||
+      lastMessage.sender?.id != currentUserId ||
+      lastMessage.readCount > 0) {
+    return conversation;
+  }
+  return conversation.copyWith(lastMessage: lastMessage.copyWith(readCount: 1));
 }
