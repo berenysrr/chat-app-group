@@ -25,14 +25,19 @@ class SocketEvent {
       if (decoded is! Map) return null;
       final envelope = decoded.cast<String, dynamic>();
       final type = envelope['type'];
-      final data = envelope['data'];
-      if (type is! String || type.isEmpty || data is! Map) return null;
-      return SocketEvent(type, data.cast<String, dynamic>());
+      if (type is! String || type.isEmpty) return null;
+      if (type == 'pong') return const SocketEvent('pong', {});
+      final rawData = envelope['data'];
+      final data = rawData is Map
+          ? rawData.cast<String, dynamic>()
+          : envelope;
+      return SocketEvent(type, data);
     } catch (_) {
       return null;
     }
   }
 }
+
 
 abstract interface class WebSocketService {
   Stream<SocketConnectionState> get connectionState;

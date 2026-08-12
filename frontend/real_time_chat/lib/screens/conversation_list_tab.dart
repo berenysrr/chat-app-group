@@ -250,9 +250,11 @@ class _ConversationListTabState extends State<ConversationListTab> {
     } else {
       final q = query.toLowerCase().trim();
       _filteredConversations = temp.where((c) {
-        final title =
-            c.name ??
-            (c.members.isNotEmpty ? c.members.first.user.username : '');
+        final peer = c.members.firstWhere(
+          (m) => m.user.id != _currentUser?.id,
+          orElse: () => c.members.first,
+        );
+        final title = c.name ?? (c.members.isNotEmpty ? peer.user.username : '');
         final lastMsg = c.lastMessage == null
             ? ''
             : previewTextForMessage(
@@ -262,6 +264,7 @@ class _ConversationListTabState extends State<ConversationListTab> {
         return title.toLowerCase().contains(q) ||
             lastMsg.toLowerCase().contains(q);
       }).toList();
+
     }
   }
 

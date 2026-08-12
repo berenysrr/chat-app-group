@@ -13,11 +13,20 @@ class ChatService {
           ? response.data['results']
           : response.data;
       if (response.statusCode == 200 && results is List) {
-        return results.map((json) => ConversationModel.fromJson(json)).toList();
+        final list = <ConversationModel>[];
+        for (final item in results) {
+          if (item is Map<String, dynamic>) {
+            try {
+              list.add(ConversationModel.fromJson(item));
+            } catch (_) {}
+          }
+        }
+        return list;
       }
     } catch (_) {}
     return [];
   }
+
 
   Future<ConversationModel?> createConversation({
     required String type,
