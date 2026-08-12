@@ -134,6 +134,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       controller.messages.last.status == MessageStatus.read
                   ? 1
                   : 0,
+              recipientCount: widget.conversation.members.isEmpty
+                  ? 0
+                  : widget.conversation.members.length - 1,
+              isReadByAll:
+                  controller.messages.last.sender.id == profile.id &&
+                  controller.messages.last.status == MessageStatus.read,
               isReadByMe: controller.messages.last.sender.id != profile.id,
             );
 

@@ -44,6 +44,8 @@ class LastMessageModel {
   final UserModel? sender;
   final DateTime? createdAt;
   final int readCount;
+  final int recipientCount;
+  final bool isReadByAll;
   final bool isReadByMe;
 
   LastMessageModel({
@@ -53,8 +55,26 @@ class LastMessageModel {
     this.sender,
     this.createdAt,
     this.readCount = 0,
+    this.recipientCount = 0,
+    this.isReadByAll = false,
     this.isReadByMe = false,
   });
+
+  LastMessageModel copyWith({
+    int? readCount,
+    int? recipientCount,
+    bool? isReadByAll,
+  }) => LastMessageModel(
+    id: id,
+    content: content,
+    messageType: messageType,
+    sender: sender,
+    createdAt: createdAt,
+    readCount: readCount ?? this.readCount,
+    recipientCount: recipientCount ?? this.recipientCount,
+    isReadByAll: isReadByAll ?? this.isReadByAll,
+    isReadByMe: isReadByMe,
+  );
 
   factory LastMessageModel.fromJson(Map<String, dynamic> json) {
     return LastMessageModel(
@@ -68,6 +88,10 @@ class LastMessageModel {
       readCount: json['read_count'] is int
           ? json['read_count'] as int
           : int.tryParse('${json['read_count'] ?? 0}') ?? 0,
+      recipientCount: json['recipient_count'] is int
+          ? json['recipient_count'] as int
+          : int.tryParse('${json['recipient_count'] ?? 0}') ?? 0,
+      isReadByAll: json['is_read_by_all'] == true,
       isReadByMe: json['is_read_by_me'] == true,
     );
   }
@@ -96,6 +120,19 @@ class ConversationModel {
     this.updatedAt,
   });
 
+  ConversationModel copyWith({LastMessageModel? lastMessage}) =>
+      ConversationModel(
+        id: id,
+        type: type,
+        name: name,
+        createdBy: createdBy,
+        members: members,
+        lastMessage: lastMessage ?? this.lastMessage,
+        unreadCount: unreadCount,
+        createdAt: createdAt,
+        updatedAt: updatedAt,
+      );
+
   factory ConversationModel.fromJson(Map<String, dynamic> json) {
     return ConversationModel(
       id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
@@ -123,4 +160,23 @@ class ConversationModel {
       updatedAt: _parseLocalDateTime(json['updated_at']),
     );
   }
+}
+
+ConversationModel applyReadReceiptToConversation(
+  ConversationModel conversation, {
+  required int messageId,
+  required int currentUserId,
+  required bool isReadByAll,
+}) {
+  final lastMessage = conversation.lastMessage;
+  if (lastMessage == null ||
+      lastMessage.id != messageId ||
+      lastMessage.sender?.id != currentUserId ||
+      !isReadByAll ||
+      lastMessage.isReadByAll) {
+    return conversation;
+  }
+  return conversation.copyWith(
+    lastMessage: lastMessage.copyWith(isReadByAll: true),
+  );
 }

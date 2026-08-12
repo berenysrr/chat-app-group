@@ -67,6 +67,12 @@ void main() {
           'client_message_id': 'client-1',
           'conversation_id': 3,
           'sender': {'id': 1, 'username': 'user1', 'avatar': null},
+          'reply_to': {
+            'id': 12,
+            'sender': {'id': 2, 'username': 'user2', 'avatar': null},
+            'content': 'Yarın geliyor musun?',
+            'message_type': 'text',
+          },
           'content': 'Merhaba',
           'message_type': 'text',
           'created_at': '2026-08-10T10:30:00Z',
@@ -75,9 +81,39 @@ void main() {
     );
 
     expect((await ackFuture.timeout(const Duration(seconds: 1))).messageId, 15);
-    expect(
-      (await messageFuture.timeout(const Duration(seconds: 1))).content,
-      'Merhaba',
+    final message = await messageFuture.timeout(const Duration(seconds: 1));
+    expect(message.content, 'Merhaba');
+    expect(message.replyTo?.id, 12);
+    expect(message.replyTo?.senderName, 'user2');
+  });
+
+  test('message read carries aggregate group read state', () async {
+    final service = ContractWebSocketService(
+      conversationId: 3,
+      baseUrl: 'ws://localhost:8000',
+      accessTokenProvider: () async => 'token',
     );
+    addTearDown(service.dispose);
+    final readFuture = service.listenMessageRead().first;
+
+    service.handleFrameForTest(
+      jsonEncode({
+        'type': 'message.read',
+        'data': {
+          'message_id': 15,
+          'user_id': 2,
+          'read_at': '2026-08-10T10:35:00Z',
+          'read_count': 1,
+          'recipient_count': 2,
+          'is_read_by_all': false,
+        },
+      }),
+    );
+
+    final read = await readFuture.timeout(const Duration(seconds: 1));
+    expect(read.messageId, 15);
+    expect(read.readCount, 1);
+    expect(read.recipientCount, 2);
+    expect(read.isReadByAll, isFalse);
   });
 }

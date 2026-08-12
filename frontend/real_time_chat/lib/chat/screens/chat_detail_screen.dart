@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../controllers/chat_controller.dart';
 import '../models/chat_models.dart';
 import '../services/web_socket_service.dart';
+import '../utils/chat_timestamp.dart';
 import '../widgets/chat_widgets.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
@@ -28,6 +29,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   late final ChatController _controller;
   int previousCount = 0;
   bool showJumpButton = false;
+  ChatMessage? _replyingTo;
   @override
   void initState() {
     super.initState();
@@ -214,9 +216,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                                     .difference(message.createdAt)
                                     .inMinutes >
                                 3;
-                        final previous = index > 0
-                            ? controller.messages[index - 1]
-                            : null;
+                        final previous = previousVisibleMessageForIndex(
+                          controller.messages,
+                          index,
+                        );
                         final showDate =
                             previous == null ||
                             !_sameDay(previous.createdAt, message.createdAt);
@@ -230,10 +233,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                               isMine: message.isMine(controller.currentUser.id),
                               senderName: senderNameForMessage(
                                 message: message,
+                                previousMessage: previous,
                                 currentUserId: controller.currentUser.id,
                                 showSenderNames: widget.showSenderNames,
                               ),
                               showTail: showTail,
+                              onReply: message.id == null
+                                  ? null
+                                  : () => setState(() => _replyingTo = message),
                               onRetry: message.status == MessageStatus.failed
                                   ? () => controller.retryMessage(
                                       message.clientMessageId,
@@ -263,7 +270,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               border: Border(top: BorderSide(color: border)),
             ),
             child: MessageInput(
-              onSend: controller.send,
+              replyingTo: _replyingTo == null
+                  ? null
+                  : ReplyMessageInfo.fromMessage(_replyingTo!),
+              onCancelReply: () => setState(() => _replyingTo = null),
+              onSend: (content, {messageType = 'text'}) {
+                final sent = controller.send(
+                  content,
+                  messageType: messageType,
+                  replyTo: _replyingTo,
+                );
+                if (sent) setState(() => _replyingTo = null);
+                return sent;
+              },
               onChanged: controller.onInputChanged,
             ),
           ),
@@ -285,15 +304,37 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
 String? senderNameForMessage({
   required ChatMessage message,
+  ChatMessage? previousMessage,
   required int currentUserId,
   required bool showSenderNames,
 }) {
-  if (!showSenderNames || message.isMine(currentUserId)) return null;
-  final username = message.sender.username.trim();
-  if (username.isNotEmpty) return username;
-  final email = message.sender.email?.trim() ?? '';
-  return email.isNotEmpty ? email : 'Kullanıcı';
+  if (!shouldShowSenderNameForMessage(
+    message: message,
+    previousMessage: previousMessage,
+    currentUserId: currentUserId,
+    showSenderNames: showSenderNames,
+  )) {
+    return null;
+  }
+  return message.senderName;
 }
+
+bool shouldShowSenderNameForMessage({
+  required ChatMessage message,
+  ChatMessage? previousMessage,
+  required int currentUserId,
+  required bool showSenderNames,
+}) {
+  if (!showSenderNames || message.isMine(currentUserId)) return false;
+  if (previousMessage == null) return true;
+  if (!_sameDay(previousMessage.createdAt, message.createdAt)) return true;
+  return previousMessage.sender.id != message.sender.id;
+}
+
+ChatMessage? previousVisibleMessageForIndex(
+  List<ChatMessage> chronologicalMessages,
+  int currentIndex,
+) => currentIndex > 0 ? chronologicalMessages[currentIndex - 1] : null;
 
 String _subtitle(ChatController controller) {
   if (controller.connection == SocketConnectionState.connecting ||
@@ -303,7 +344,7 @@ String _subtitle(ChatController controller) {
   if (controller.peerIsTyping) return 'yazıyor…';
   if (controller.peerIsOnline) return 'çevrimiçi';
   if (controller.peerLastSeen != null) {
-    return 'son görülme ${controller.peerLastSeen!.hour.toString().padLeft(2, '0')}:${controller.peerLastSeen!.minute.toString().padLeft(2, '0')}';
+    return formatLastSeen(controller.peerLastSeen!);
   }
   return 'çevrimdışı';
 }

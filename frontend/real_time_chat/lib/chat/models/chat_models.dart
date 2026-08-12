@@ -3,6 +3,21 @@ import '../../utils/avatar_url.dart';
 
 enum MessageStatus { pending, sent, delivered, read, failed }
 
+int messageStatusRank(MessageStatus status) => switch (status) {
+  MessageStatus.failed => -1,
+  MessageStatus.pending => 0,
+  MessageStatus.sent => 1,
+  MessageStatus.delivered => 2,
+  MessageStatus.read => 3,
+};
+
+MessageStatus latestMessageStatus(
+  MessageStatus current,
+  MessageStatus incoming,
+) => messageStatusRank(incoming) > messageStatusRank(current)
+    ? incoming
+    : current;
+
 int _requiredInt(Object? value, String field) {
   if (value is int) return value;
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -53,6 +68,44 @@ class ChatUser {
   );
 }
 
+class ReplyMessageInfo {
+  const ReplyMessageInfo({
+    required this.id,
+    required this.sender,
+    required this.content,
+    required this.messageType,
+  });
+
+  final int id;
+  final ChatUser sender;
+  final String content;
+  final String messageType;
+
+  String get senderName {
+    final username = sender.username.trim();
+    if (username.isNotEmpty) return username;
+    final email = sender.email?.trim() ?? '';
+    return email.isNotEmpty ? email : 'Kullanıcı';
+  }
+
+  factory ReplyMessageInfo.fromJson(Map<String, dynamic> json) =>
+      ReplyMessageInfo(
+        id: _requiredInt(json['id'], 'reply_to.id'),
+        sender: ChatUser.fromJson(
+          _requiredMap(json['sender'], 'reply_to.sender'),
+        ),
+        content: json['content']?.toString() ?? '',
+        messageType: json['message_type']?.toString() ?? 'text',
+      );
+
+  factory ReplyMessageInfo.fromMessage(ChatMessage message) => ReplyMessageInfo(
+    id: message.id!,
+    sender: message.sender,
+    content: message.content,
+    messageType: message.messageType,
+  );
+}
+
 class ChatMessage {
   const ChatMessage({
     required this.id,
@@ -63,6 +116,7 @@ class ChatMessage {
     required this.createdAt,
     this.messageType = 'text',
     this.status = MessageStatus.delivered,
+    this.replyTo,
   });
 
   final int? id;
@@ -73,8 +127,16 @@ class ChatMessage {
   final String messageType;
   final DateTime createdAt;
   final MessageStatus status;
+  final ReplyMessageInfo? replyTo;
 
   bool isMine(int currentUserId) => sender.id == currentUserId;
+
+  String get senderName {
+    final username = sender.username.trim();
+    if (username.isNotEmpty) return username;
+    final email = sender.email?.trim() ?? '';
+    return email.isNotEmpty ? email : 'Kullanıcı';
+  }
 
   ChatMessage copyWith({
     int? id,
@@ -82,6 +144,7 @@ class ChatMessage {
     MessageStatus? status,
     String? content,
     String? messageType,
+    ReplyMessageInfo? replyTo,
   }) => ChatMessage(
     id: id ?? this.id,
     clientMessageId: clientMessageId,
@@ -91,6 +154,7 @@ class ChatMessage {
     messageType: messageType ?? this.messageType,
     createdAt: createdAt ?? this.createdAt,
     status: status ?? this.status,
+    replyTo: replyTo ?? this.replyTo,
   );
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
@@ -109,7 +173,25 @@ class ChatMessage {
     createdAt: DateTime.parse(
       _requiredString(json['created_at'], 'message.created_at'),
     ).toLocal(),
+    status: _statusFromJson(json),
+    replyTo: json['reply_to'] is Map
+        ? ReplyMessageInfo.fromJson(
+            (json['reply_to'] as Map).cast<String, dynamic>(),
+          )
+        : null,
   );
+
+  static MessageStatus _statusFromJson(Map<String, dynamic> json) {
+    final rawStatus = json['status']?.toString().toLowerCase();
+    if (rawStatus != null) {
+      for (final status in MessageStatus.values) {
+        if (status.name == rawStatus) return status;
+      }
+    }
+    if (json['is_read_by_all'] == true) return MessageStatus.read;
+    if (json['delivered_at'] != null) return MessageStatus.delivered;
+    return MessageStatus.delivered;
+  }
 }
 
 enum ConversationType { private, group }
@@ -253,16 +335,28 @@ class ReadEvent {
     required this.messageId,
     required this.userId,
     required this.readAt,
+    required this.readCount,
+    required this.recipientCount,
+    required this.isReadByAll,
   });
   final int messageId;
   final int userId;
   final DateTime readAt;
+  final int readCount;
+  final int recipientCount;
+  final bool isReadByAll;
   factory ReadEvent.fromJson(Map<String, dynamic> json) => ReadEvent(
     messageId: _requiredInt(json['message_id'], 'read.message_id'),
     userId: _requiredInt(json['user_id'], 'read.user_id'),
     readAt: DateTime.parse(
       _requiredString(json['read_at'], 'read.read_at'),
     ).toLocal(),
+    readCount: _requiredInt(json['read_count'], 'read.read_count'),
+    recipientCount: _requiredInt(
+      json['recipient_count'],
+      'read.recipient_count',
+    ),
+    isReadByAll: json['is_read_by_all'] == true,
   );
 }
 

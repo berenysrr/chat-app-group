@@ -37,6 +37,7 @@ void main() {
     expect(controller.messages, isEmpty);
     expect(controller.send('  Merhaba  '), isTrue);
     expect(controller.messages.single.content, 'Merhaba');
+    expect(controller.messages.single.status, MessageStatus.sent);
     controller.dispose();
   });
 
@@ -48,7 +49,7 @@ void main() {
     expect(controller.send('Kaybolmasın'), isFalse);
     expect(controller.messages.single.status, MessageStatus.failed);
     controller.retryMessage(controller.messages.single.clientMessageId);
-    expect(controller.messages.single.status, MessageStatus.pending);
+    expect(controller.messages.single.status, MessageStatus.sent);
     controller.dispose();
   });
 
@@ -118,6 +119,57 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('offline event clears typing and stores local last seen', (
+    tester,
+  ) async {
+    final socket = MockWebSocketService();
+    final controller = buildController(socket);
+    final initialization = controller.initialize();
+    await tester.pump(const Duration(milliseconds: 250));
+    await initialization;
+    socket.emitTyping(true);
+    await tester.pump();
+    expect(controller.peerIsTyping, isTrue);
+
+    socket.emitPresence(
+      userId: peer.id,
+      username: peer.username,
+      online: false,
+    );
+    await tester.pump();
+
+    expect(controller.peerIsTyping, isFalse);
+    expect(controller.peerIsOnline, isFalse);
+    expect(controller.peerLastSeen, isNotNull);
+    expect(controller.peerLastSeen!.isUtc, isFalse);
+    controller.dispose();
+  });
+
+  testWidgets('group typing accepts another user on the conversation socket', (
+    tester,
+  ) async {
+    final socket = MockWebSocketService();
+    final controller = ChatController(
+      socket: socket,
+      currentUser: me,
+      peer: const ChatUser(id: -3, username: 'Proje Grubu'),
+      conversationId: 3,
+      initialMessages: const [],
+    );
+    final initialization = controller.initialize();
+    await tester.pump(const Duration(milliseconds: 250));
+    await initialization;
+
+    socket.emitTyping(true, userId: 4);
+    await tester.pump();
+    expect(controller.peerIsTyping, isTrue);
+
+    socket.emitTyping(false, userId: 4);
+    await tester.pump();
+    expect(controller.peerIsTyping, isFalse);
+    controller.dispose();
+  });
+
   test(
     'mock replies use contract models and a deterministic sequence',
     () async {
@@ -182,6 +234,66 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(controller.messages, hasLength(1));
     expect(controller.messages.single.isMine(me.id), isTrue);
+    controller.dispose();
+  });
+
+  test(
+    'group message becomes read only after every recipient reads it',
+    () async {
+      final socket = MockWebSocketService(autoReplyEnabled: false);
+      final controller = ChatController(
+        socket: socket,
+        currentUser: me,
+        peer: const ChatUser(id: -3, username: 'Proje Grubu'),
+        conversationId: 3,
+        initialMessages: [
+          ChatMessage(
+            id: 50,
+            clientMessageId: 'group-message',
+            conversationId: 3,
+            sender: me,
+            content: 'Herkese merhaba',
+            createdAt: DateTime(2026, 8, 11),
+            status: MessageStatus.delivered,
+          ),
+        ],
+      );
+      await controller.initialize();
+
+      socket.emitRead(messageId: 50, readCount: 1, recipientCount: 2);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.messages.single.status, MessageStatus.delivered);
+
+      socket.emitRead(messageId: 50, readCount: 2, recipientCount: 2);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.messages.single.status, MessageStatus.read);
+
+      socket.emitRead(messageId: 50, readCount: 1, recipientCount: 2);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.messages.single.status, MessageStatus.read);
+      controller.dispose();
+    },
+  );
+
+  test('presence never marks an outgoing message as read', () async {
+    final socket = MockWebSocketService(autoReplyEnabled: false);
+    final controller = buildController(socket);
+    await controller.initialize();
+    expect(controller.send('Okunmayi bekleyen mesaj'), isTrue);
+
+    socket.emitPresence(userId: peer.id, username: peer.username, online: true);
+    await Future<void>.delayed(const Duration(milliseconds: 950));
+
+    expect(controller.peerIsOnline, isTrue);
+    expect(controller.messages.single.status, MessageStatus.delivered);
+
+    socket.emitRead(
+      messageId: controller.messages.single.id!,
+      readCount: 1,
+      recipientCount: 1,
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.messages.single.status, MessageStatus.read);
     controller.dispose();
   });
 

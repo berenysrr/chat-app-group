@@ -97,7 +97,10 @@ class ChatController extends ChangeNotifier {
       socket.listenAcknowledgement().listen(_onAcknowledgement),
       socket.listenMessageRead().listen(_onRead),
       socket.listenTyping().listen((event) {
-        if (event.userId != peer.id) return;
+        if (event.userId == currentUser.id ||
+            (peer.id > 0 && event.userId != peer.id)) {
+          return;
+        }
         _peerTypingTimeout?.cancel();
         peerIsTyping = event.isTyping;
         if (event.isTyping) {
@@ -116,6 +119,8 @@ class ChatController extends ChangeNotifier {
       }),
       socket.listenOffline().listen((event) {
         if (event.userId != peer.id) return;
+        _peerTypingTimeout?.cancel();
+        peerIsTyping = false;
         peerIsOnline = false;
         peerLastSeen = event.lastSeen;
         notifyListeners();
@@ -206,6 +211,7 @@ class ChatController extends ChangeNotifier {
           clientMessageId: message.clientMessageId,
           content: message.content,
           messageType: message.messageType,
+          replyToMessageId: message.replyTo?.id,
         );
       }
     } on Object catch (error) {
@@ -225,16 +231,25 @@ class ChatController extends ChangeNotifier {
       );
       if (index < 0) {
         _messages.add(message);
-      } else if (_messages[index].status == MessageStatus.pending) {
-        _messages[index] = message;
+      } else {
+        final current = _messages[index];
+        _messages[index] = message.copyWith(
+          status: latestMessageStatus(current.status, message.status),
+        );
       }
     }
     _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
   }
 
-  bool send(String rawContent, {String messageType = 'text'}) {
+  bool send(
+    String rawContent, {
+    String messageType = 'text',
+    ChatMessage? replyTo,
+  }) {
     final content = rawContent.trim();
-    if (content.isEmpty) return false;
+    if (content.isEmpty || (replyTo != null && replyTo.id == null)) {
+      return false;
+    }
     final clientId = const Uuid().v4();
     _messages.add(
       ChatMessage(
@@ -246,6 +261,7 @@ class ChatController extends ChangeNotifier {
         messageType: messageType,
         createdAt: DateTime.now(),
         status: MessageStatus.pending,
+        replyTo: replyTo == null ? null : ReplyMessageInfo.fromMessage(replyTo),
       ),
     );
     notifyListeners();
@@ -255,7 +271,13 @@ class ChatController extends ChangeNotifier {
         clientMessageId: clientId,
         content: content,
         messageType: messageType,
+        replyToMessageId: replyTo?.id,
       );
+      _replaceByClientId(
+        clientId,
+        (message) => message.copyWith(status: MessageStatus.sent),
+      );
+      notifyListeners();
       return true;
     } catch (error) {
       _replaceByClientId(
@@ -284,7 +306,10 @@ class ChatController extends ChangeNotifier {
         clientMessageId: message.clientMessageId,
         content: message.content,
         messageType: message.messageType,
+        replyToMessageId: message.replyTo?.id,
       );
+      _messages[index] = _messages[index].copyWith(status: MessageStatus.sent);
+      notifyListeners();
     } catch (_) {
       _messages[index] = message.copyWith(status: MessageStatus.failed);
       errorMessage = 'Mesaj yeniden gönderilemedi.';
@@ -404,13 +429,16 @@ class ChatController extends ChangeNotifier {
   }
 
   void _onRead(ReadEvent event) {
+    if (!event.isReadByAll) return;
     final index = _messages.indexWhere(
       (message) =>
           message.id == event.messageId && message.isMine(currentUser.id),
     );
     if (index >= 0) {
-      if (_messages[index].status == MessageStatus.read) return;
-      _messages[index] = _messages[index].copyWith(status: MessageStatus.read);
+      final current = _messages[index];
+      final status = latestMessageStatus(current.status, MessageStatus.read);
+      if (status == current.status) return;
+      _messages[index] = current.copyWith(status: status);
       notifyListeners();
     }
   }

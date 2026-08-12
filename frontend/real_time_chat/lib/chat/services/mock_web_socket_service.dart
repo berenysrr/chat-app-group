@@ -31,6 +31,7 @@ class MockWebSocketService implements WebSocketService {
   int typingStartCalls = 0;
   int typingStopCalls = 0;
   int readCalls = 0;
+  int? lastReplyToMessageId;
   bool _connected = false;
   bool _disposed = false;
   final List<Timer> _timers = [];
@@ -84,11 +85,13 @@ class MockWebSocketService implements WebSocketService {
     required String clientMessageId,
     required String content,
     String messageType = 'text',
+    int? replyToMessageId,
   }) {
     if (failNextSend || !_connected) {
       failNextSend = false;
       throw StateError('Mock WebSocket is not connected');
     }
+    lastReplyToMessageId = replyToMessageId;
     final id = _nextId++;
     final now = DateTime.now();
     _timers.add(
@@ -101,14 +104,6 @@ class MockWebSocketService implements WebSocketService {
             conversationId: conversationId,
             createdAt: now,
           ),
-        ),
-      ),
-    );
-    _timers.add(
-      Timer(
-        const Duration(milliseconds: 900),
-        () => _reads.add(
-          ReadEvent(messageId: id, userId: peerId, readAt: DateTime.now()),
         ),
       ),
     );
@@ -182,6 +177,22 @@ class MockWebSocketService implements WebSocketService {
 
   void emitMessage(ChatMessage message) => _messages.add(message);
 
+  void emitRead({
+    required int messageId,
+    required int readCount,
+    required int recipientCount,
+    int? userId,
+  }) => _reads.add(
+    ReadEvent(
+      messageId: messageId,
+      userId: userId ?? peerId,
+      readAt: DateTime.now(),
+      readCount: readCount,
+      recipientCount: recipientCount,
+      isReadByAll: recipientCount > 0 && readCount >= recipientCount,
+    ),
+  );
+
   void emitTyping(bool typing, {int? userId}) => _typing.add(
     TypingEvent(
       userId: userId ?? peerId,
@@ -202,6 +213,9 @@ class MockWebSocketService implements WebSocketService {
         messageId: messageId,
         userId: currentUserId,
         readAt: DateTime.now(),
+        readCount: 1,
+        recipientCount: 1,
+        isReadByAll: true,
       ),
     );
   }

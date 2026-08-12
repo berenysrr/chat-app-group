@@ -157,12 +157,14 @@ class MessageBubble extends StatelessWidget {
     required this.showTail,
     this.senderName,
     this.onRetry,
+    this.onReply,
   });
   final ChatMessage message;
   final bool isMine;
   final bool showTail;
   final String? senderName;
   final VoidCallback? onRetry;
+  final VoidCallback? onReply;
   @override
   Widget build(BuildContext context) {
     final bubbleColor = AppTheme.card(context);
@@ -175,33 +177,32 @@ class MessageBubble extends StatelessWidget {
       messageType: message.messageType,
       content: message.content,
     );
+    final visibleSenderName = senderName?.trim();
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: isMine
           ? CrossAxisAlignment.end
           : CrossAxisAlignment.start,
       children: [
-        if (senderName != null)
+        if (visibleSenderName?.isNotEmpty == true)
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 2, 14, 3),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.sizeOf(context).width * .72,
-              ),
-              child: Text(
-                senderName!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppTheme.primaryLight,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
+            child: Text(
+              visibleSenderName!,
+              key: const Key('group-message-sender-name'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.left,
+              style: const TextStyle(
+                color: AppTheme.primaryLight,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
         GestureDetector(
           onTap: message.status == MessageStatus.failed ? onRetry : null,
+          onLongPress: onReply,
           child: Align(
             alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
             child: AnimatedContainer(
@@ -227,106 +228,174 @@ class MessageBubble extends StatelessWidget {
                   bottomRight: isMine ? radius : const Radius.circular(18),
                 ),
               ),
-              child: audioMessage
-                  ? ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 260),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          VoiceMessagePlayer(
-                            dataUrl: message.content,
-                            isMine: isMine,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (message.replyTo != null)
+                    ReplyQuotePreview(reply: message.replyTo!, isMine: isMine),
+                  if (message.replyTo != null) const SizedBox(height: 7),
+                  audioMessage
+                      ? ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 260),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              VoiceMessagePlayer(
+                                dataUrl: message.content,
+                                isMine: isMine,
+                              ),
+                              const SizedBox(height: 8),
+                              _MessageMeta(
+                                isMine: isMine,
+                                createdAt: message.createdAt,
+                                status: message.status,
+                                secondaryText: secondaryText,
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 8),
-                          _MessageMeta(
-                            isMine: isMine,
-                            createdAt: message.createdAt,
-                            status: message.status,
-                            secondaryText: secondaryText,
-                          ),
-                        ],
-                      ),
-                    )
-                  : gifMessage == null
-                  ? Wrap(
-                      alignment: WrapAlignment.end,
-                      crossAxisAlignment: WrapCrossAlignment.end,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(right: 9, bottom: 2),
-                          child: Text(
-                            message.content,
-                            style: TextStyle(
-                              fontSize: 15.5,
-                              height: 1.3,
-                              color: isMine
-                                  ? AppColors.textPrimary
-                                  : incomingText,
+                        )
+                      : gifMessage == null
+                      ? Wrap(
+                          alignment: WrapAlignment.end,
+                          crossAxisAlignment: WrapCrossAlignment.end,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                right: 9,
+                                bottom: 2,
+                              ),
+                              child: Text(
+                                message.content,
+                                style: TextStyle(
+                                  fontSize: 15.5,
+                                  height: 1.3,
+                                  color: isMine
+                                      ? AppColors.textPrimary
+                                      : incomingText,
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                        _MessageMeta(
-                          isMine: isMine,
-                          createdAt: message.createdAt,
-                          status: message.status,
-                          secondaryText: secondaryText,
-                        ),
-                      ],
-                    )
-                  : ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 260),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: AspectRatio(
-                              aspectRatio: 1.2,
-                              child: Image.network(
-                                gifMessage.url,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => Container(
-                                  color: bubbleColor,
-                                  alignment: Alignment.center,
-                                  padding: const EdgeInsets.all(20),
-                                  child: Text(
-                                    gifMessage.label,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: incomingText,
-                                      fontWeight: FontWeight.w600,
+                            _MessageMeta(
+                              isMine: isMine,
+                              createdAt: message.createdAt,
+                              status: message.status,
+                              secondaryText: secondaryText,
+                            ),
+                          ],
+                        )
+                      : ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 260),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: AspectRatio(
+                                  aspectRatio: 1.2,
+                                  child: Image.network(
+                                    gifMessage.url,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => Container(
+                                      color: bubbleColor,
+                                      alignment: Alignment.center,
+                                      padding: const EdgeInsets.all(20),
+                                      child: Text(
+                                        gifMessage.label,
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: incomingText,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
+                              const SizedBox(height: 8),
+                              Text(
+                                gifMessage.label,
+                                style: TextStyle(
+                                  color: isMine
+                                      ? AppColors.textPrimary.withValues(
+                                          alpha: .92,
+                                        )
+                                      : incomingText,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              _MessageMeta(
+                                isMine: isMine,
+                                createdAt: message.createdAt,
+                                status: message.status,
+                                secondaryText: secondaryText,
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            gifMessage.label,
-                            style: TextStyle(
-                              color: isMine
-                                  ? AppColors.textPrimary.withValues(alpha: .92)
-                                  : incomingText,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          _MessageMeta(
-                            isMine: isMine,
-                            createdAt: message.createdAt,
-                            status: message.status,
-                            secondaryText: secondaryText,
-                          ),
-                        ],
-                      ),
-                    ),
+                        ),
+                ],
+              ),
             ),
           ),
         ),
       ],
     );
   }
+}
+
+String replyPreviewText(ReplyMessageInfo reply) => previewTextForMessage(
+  content: reply.content,
+  messageType: reply.messageType,
+);
+
+class ReplyQuotePreview extends StatelessWidget {
+  const ReplyQuotePreview({
+    super.key,
+    required this.reply,
+    this.isMine = false,
+  });
+
+  final ReplyMessageInfo reply;
+  final bool isMine;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.fromLTRB(9, 7, 9, 7),
+    decoration: BoxDecoration(
+      color: (isMine ? Colors.white : AppTheme.primary).withValues(alpha: .12),
+      borderRadius: BorderRadius.circular(10),
+      border: const Border(left: BorderSide(color: AppTheme.primary, width: 3)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          reply.senderName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: isMine ? AppColors.textPrimary : AppTheme.primaryLight,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          replyPreviewText(reply),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: isMine
+                ? AppColors.textPrimary.withValues(alpha: .82)
+                : AppTheme.textSecondary(context),
+            fontSize: 12,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _MessageMeta extends StatelessWidget {
@@ -378,7 +447,7 @@ class MessageStatusIcon extends StatelessWidget {
     return Icon(
       icon,
       size: 15,
-      color: read ? AppColors.online : AppColors.textSecondary,
+      color: read ? AppColors.accentBlue : AppColors.textSecondary,
     );
   }
 }
@@ -442,9 +511,13 @@ class MessageInput extends StatefulWidget {
     super.key,
     required this.onSend,
     required this.onChanged,
+    this.replyingTo,
+    this.onCancelReply,
   });
   final bool Function(String, {String messageType}) onSend;
   final ValueChanged<String> onChanged;
+  final ReplyMessageInfo? replyingTo;
+  final VoidCallback? onCancelReply;
   @override
   State<MessageInput> createState() => _MessageInputState();
 }
@@ -794,6 +867,29 @@ class _MessageInputState extends State<MessageInput> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (widget.replyingTo != null)
+            Container(
+              key: const Key('reply-input-preview'),
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+              decoration: BoxDecoration(
+                color: AppTheme.headerBg(context),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppTheme.cardBorder(context)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(child: ReplyQuotePreview(reply: widget.replyingTo!)),
+                  IconButton(
+                    key: const Key('cancel-reply'),
+                    tooltip: 'Yanıtı iptal et',
+                    onPressed: widget.onCancelReply,
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
           if (_isRecording)
             Container(
               width: double.infinity,

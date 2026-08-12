@@ -26,13 +26,34 @@ def save_message_to_db(
     content,
     client_message_id,
     message_type='text',
+    reply_to_id=None,
 ):
     """Gelen mesajı PostgreSQL/SQLite veritabanına kaydeder."""
+    existing = Message.objects.filter(
+        conversation_id=conversation_id,
+        sender=user,
+        client_message_id=client_message_id,
+    ).first()
+    if existing is not None:
+        return existing, False
+    reply_to = None
+    if reply_to_id is not None:
+        reply_to = Message.objects.filter(
+            id=reply_to_id,
+            conversation_id=conversation_id,
+            is_deleted=False,
+        ).select_related('sender').first()
+        if reply_to is None:
+            return None, False
     message, created = Message.objects.get_or_create(
         conversation_id=conversation_id,
         sender=user,
         client_message_id=client_message_id,
-        defaults={'content': content, 'message_type': message_type},
+        defaults={
+            'content': content,
+            'message_type': message_type,
+            'reply_to': reply_to,
+        },
     )
     if created:
         Conversation.objects.filter(id=conversation_id).update(
@@ -42,13 +63,48 @@ def save_message_to_db(
 
 
 @database_sync_to_async
-def save_message_read_to_db(user, message_id):
+def save_message_read_to_db(user, message_id, conversation_id):
     """Okundu bilgisini veritabanına yazar."""
-    obj, created = MessageRead.objects.get_or_create(
-        message_id=message_id,
-        user=user
-    )
-    return obj.read_at.isoformat()
+    message = Message.objects.filter(
+        id=message_id,
+        conversation_id=conversation_id,
+        conversation__members__user=user,
+        is_deleted=False,
+    ).first()
+    if message is None or message.sender_id == user.id:
+        return None
+    obj, _ = MessageRead.objects.get_or_create(message=message, user=user)
+    recipient_count = ConversationMember.objects.filter(
+        conversation_id=conversation_id,
+    ).exclude(user_id=message.sender_id).count()
+    read_count = MessageRead.objects.filter(
+        message=message,
+        user__conversations__conversation_id=conversation_id,
+    ).exclude(user_id=message.sender_id).values('user_id').distinct().count()
+    return {
+        'read_at': obj.read_at.isoformat(),
+        'read_count': read_count,
+        'recipient_count': recipient_count,
+        'is_read_by_all': recipient_count > 0 and read_count >= recipient_count,
+    }
+
+
+@database_sync_to_async
+def get_reply_payload(message_id):
+    message = Message.objects.select_related('reply_to__sender').get(id=message_id)
+    replied = message.reply_to
+    if replied is None:
+        return None
+    return {
+        "id": replied.id,
+        "sender": {
+            "id": replied.sender.id,
+            "username": replied.sender.username,
+            "avatar": replied.sender.avatar.url if replied.sender.avatar else None,
+        },
+        "content": replied.content,
+        "message_type": replied.message_type,
+    }
 
 
 @database_sync_to_async
@@ -155,6 +211,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         content = raw_content.strip() if isinstance(raw_content, str) else ""
         client_message_id = data.get("client_message_id")
         message_type = str(data.get("message_type") or 'text').strip().lower()
+        reply_to_id = data.get("reply_to")
 
         if not client_message_id:
             await self.send_json({"type": "error", "data": {"code": "CLIENT_MESSAGE_ID_REQUIRED", "message": "client_message_id is required."}})
@@ -181,6 +238,21 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 "data": {"code": "MESSAGE_EMPTY", "message": "Message content cannot be empty."}
             })
             return
+
+        if reply_to_id is not None:
+            try:
+                reply_to_id = int(reply_to_id)
+                if reply_to_id <= 0:
+                    raise ValueError
+            except (TypeError, ValueError):
+                await self.send_json({
+                    "type": "error",
+                    "data": {
+                        "code": "REPLY_TO_INVALID",
+                        "message": "reply_to must be a positive message id.",
+                    }
+                })
+                return
 
         if message_type == 'audio':
             if not content.startswith('data:audio/'):
@@ -209,7 +281,18 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             content,
             client_message_id,
             message_type,
+            reply_to_id,
         )
+
+        if msg is None:
+            await self.send_json({
+                "type": "error",
+                "data": {
+                    "code": "REPLY_TO_NOT_FOUND",
+                    "message": "Reply message was not found in this conversation.",
+                }
+            })
+            return
 
         await self.send_json({
             "type": "message.ack",
@@ -222,6 +305,8 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         })
         if not created:
             return
+
+        reply_payload = await get_reply_payload(msg.id)
 
         # GERÇEK VERİTABANI MESAJ BİLGİSİ İLE ROOM'A YAYINLA
         await self.channel_layer.group_send(
@@ -237,6 +322,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                         "username": self.user.username,
                         "avatar": self.user.avatar.url if self.user.avatar else None,
                     },
+                    "reply_to": reply_payload,
                     "content": msg.content,
                     "message_type": msg.message_type,
                     "created_at": msg.created_at.isoformat(),
@@ -271,7 +357,13 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             return
 
         # GERÇEK VERİTABANINA OKUNDU BİLGİSİNİ KAYDET
-        read_at_str = await save_message_read_to_db(self.user, message_id)
+        receipt = await save_message_read_to_db(
+            self.user,
+            message_id,
+            int(self.conversation_id),
+        )
+        if receipt is None:
+            return
 
         await self.channel_layer.group_send(
             self.room_group_name,
@@ -279,7 +371,10 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 "type": "message_read_event",
                 "message_id": message_id,
                 "user_id": self.user.id,
-                "read_at": read_at_str,
+                "read_at": receipt["read_at"],
+                "read_count": receipt["read_count"],
+                "recipient_count": receipt["recipient_count"],
+                "is_read_by_all": receipt["is_read_by_all"],
             }
         )
 
@@ -316,7 +411,10 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             "data": {
                 "message_id": event["message_id"],
                 "user_id": event["user_id"],
-                "read_at": event["read_at"]
+                "read_at": event["read_at"],
+                "read_count": event["read_count"],
+                "recipient_count": event["recipient_count"],
+                "is_read_by_all": event["is_read_by_all"],
             }
         })
 
